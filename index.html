@@ -635,6 +635,51 @@
     .death-grid { grid-template-columns: 1fr; }
     .death-count { font-size: 28px; }
   }
+
+  .eff-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+  }
+  .eff-box::before {
+    content: attr(data-label);
+    display: block;
+    font-size: 10px;
+    font-family: 'Press Start 2P', monospace;
+    color: var(--eff-color);
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+  }
+  .eff-types { display:flex;flex-wrap:wrap;gap:6px; }
+  .type-badge {
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .run-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .run-item:hover { border-color: var(--accent); }
+  .run-item.active-run { border-color: var(--accent); background: rgba(79,195,247,0.08); }
+  .run-item-name { font-weight: 700; font-size: 14px; }
+  .run-item-meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .stat-row { display:flex;align-items:center;gap:8px; }
+  .stat-label { font-size:11px;color:var(--muted);min-width:90px;font-weight:600; }
+  .stat-val { font-family:'Press Start 2P',monospace;font-size:10px;min-width:26px;text-align:right;color:var(--text); }
+  .stat-bar-wrap { flex:1;background:var(--surface2);border-radius:4px;height:8px;overflow:hidden; }
+  .stat-bar { height:100%;border-radius:4px;transition:width 0.4s ease; }
 </style>
 </head>
 <body>
@@ -686,8 +731,9 @@ window.addEventListener('load', () => {
 <style>@keyframes spin{to{transform:rotate(360deg);}}</style>
 
 <header style="position:relative;">
+  <button onclick="showRunOverview()" style="position:absolute;left:16px;top:50%;transform:translateY(-50%);background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:7px 13px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;transition:all 0.2s;white-space:nowrap;" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">📋 Run Übersicht</button>
   <h1>Trio Soullink</h1>
-  <p>Pokémon Schwarz 2 &nbsp;·&nbsp; Linus · Jonah · Jannik</p>
+  <p id="run-subtitle">Pokémon Schwarz 2 &nbsp;·&nbsp; Linus · Jonah · Jannik</p>
   <div style="position:absolute;right:24px;top:50%;transform:translateY(-50%);display:flex;gap:20px;align-items:center;">
     <div style="text-align:center;">
       <div style="font-size:9px;font-family:'Press Start 2P',monospace;color:var(--linus);letter-spacing:1px;margin-bottom:4px;">Linus</div>
@@ -714,14 +760,15 @@ window.addEventListener('load', () => {
 </header>
 
 <nav>
-  <button class="active" onclick="showTab('links')">🔗 Links</button>
+  <button class="active" onclick="showTab('pokemon')">🔍 Pokémon</button>
+  <button onclick="showTab('links')">🔗 Links</button>
   <button onclick="showTab('encounter')">⚡ Encounter</button>
   <button onclick="showTab('routen')">🗺️ Routen</button>
   <button onclick="showTab('gym')">🏅 Gym / Level Cap</button>
 </nav>
 
 <!-- ══════════════════════ LINKS ══════════════════════ -->
-<div id="tab-links" class="tab active">
+<div id="tab-links" class="tab">
   <p class="section-title">Link-Tabelle</p>
   <div class="toolbar">
     <button class="btn-primary" onclick="addLink()">+ Link hinzufügen</button>
@@ -779,6 +826,111 @@ window.addEventListener('load', () => {
 </div>
 
 
+<!-- ══════════════════════ POKEMON ══════════════════════ -->
+<div id="tab-pokemon" class="tab active">
+  <p class="section-title">Pokémon-Info</p>
+  <div style="max-width:700px;margin:0 auto;">
+    <!-- Custom Bild (klickbar für Vollbild) -->
+    <div style="text-align:center;margin-bottom:20px;">
+      <img src="https://i.imgur.com/aw2c7BQ.png" alt="" onclick="document.getElementById('img-lightbox').style.display='flex'"
+        style="max-width:100%;max-height:220px;border-radius:8px;object-fit:contain;cursor:zoom-in;transition:opacity 0.2s;" onmouseover="this.style.opacity=0.85" onmouseout="this.style.opacity=1">
+    </div>
+    <!-- Sprite -->
+    <div style="text-align:center;margin-bottom:20px;min-height:130px;display:flex;align-items:center;justify-content:center;">
+      <img id="pokeinfo-sprite" src="" alt="" style="width:120px;height:120px;image-rendering:pixelated;display:none;">
+    </div>
+    <!-- Search -->
+    <div class="poke-dropdown-wrap" style="margin-bottom:20px;">
+      <input class="poke-search" id="pokeinfo-search" type="text" placeholder="Pokémon suchen..." autocomplete="off"
+        oninput="filterPokeInfo(this.value)" onfocus="openPokeInfoDrop()" style="font-size:15px;padding:10px 14px;">
+      <div class="poke-list" id="pokeinfo-list"></div>
+    </div>
+    <!-- Info output -->
+    <div id="pokeinfo-output" style="display:none;">
+      <!-- Reflink -->
+      <div style="text-align:center;margin-bottom:12px;">
+        <a id="pokeinfo-wikilink" href="#" target="_blank" style="font-family:'Press Start 2P',monospace;font-size:11px;color:var(--accent);text-decoration:none;border-bottom:1px solid var(--accent);padding-bottom:2px;"
+          onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--accent)'"></a>
+      </div>
+      <!-- Formen Dropdown -->
+      <div id="pokeinfo-forms-wrap" style="display:none;text-align:center;margin-bottom:16px;">
+        <select id="pokeinfo-forms" onchange="switchForm(this.value)"
+          style="background:var(--surface2);border:1px solid var(--accent);color:var(--accent);padding:6px 14px;border-radius:4px;font-family:'Exo 2',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">
+        </select>
+      </div>
+      <div id="pokeinfo-types" style="display:flex;gap:8px;justify-content:center;margin-bottom:16px;flex-wrap:wrap;"></div>
+
+      <!-- Haupt-Layout: Stats links | Rest rechts -->
+      <div style="display:flex;gap:12px;align-items:flex-start;">
+
+        <!-- Stats (links, hochkant) -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;flex-shrink:0;width:200px;">
+          <div style="font-family:'Press Start 2P',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:12px;">STATS</div>
+          <div id="pokeinfo-stats" style="display:flex;flex-direction:column;gap:6px;"></div>
+          <div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-family:'Press Start 2P',monospace;font-size:9px;color:var(--muted);">BST</span>
+            <span id="bst-value" style="font-family:'Press Start 2P',monospace;font-size:13px;color:var(--gold);"></span>
+          </div>
+        </div>
+
+        <!-- Rechte Spalte -->
+        <div style="flex:1;display:flex;flex-direction:column;gap:12px;min-width:0;">
+          <!-- Effektivität -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+            <div id="eff-4x" class="eff-box" data-label="4× effektiv" style="--eff-color:#ef5350;"></div>
+            <div id="eff-2x" class="eff-box" data-label="2× effektiv" style="--eff-color:#ff7043;"></div>
+            <div id="eff-half" class="eff-box" data-label="½ effektiv" style="--eff-color:#66bb6a;"></div>
+            <div id="eff-quarter" class="eff-box" data-label="¼ effektiv" style="--eff-color:#26a69a;"></div>
+            <div id="eff-immune" class="eff-box" data-label="Immun (0×)" style="--eff-color:#7986cb;grid-column:1/-1;"></div>
+          </div>
+          <!-- Fähigkeiten -->
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;">
+            <div style="font-family:'Press Start 2P',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">FÄHIGKEITEN</div>
+            <div id="pokeinfo-abilities" style="display:flex;flex-direction:column;gap:8px;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Attacken (volle Breite unten) -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:12px;">
+        <div style="font-family:'Press Start 2P',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:14px;">ATTACKEN BEI LEVEL</div>
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
+          <span style="font-family:'Press Start 2P',monospace;font-size:10px;color:var(--muted);">Lv.</span>
+          <input type="range" id="level-slider" min="1" max="100" value="50"
+            style="flex:1;accent-color:var(--accent);" oninput="updateMoves()">
+          <span id="level-display" style="font-family:'Press Start 2P',monospace;font-size:16px;color:var(--accent);min-width:36px;text-align:right;">50</span>
+        </div>
+        <div id="pokeinfo-moves" style="display:flex;flex-direction:column;gap:8px;">
+          <div style="color:var(--muted);font-size:13px;">Wähle ein Pokémon aus.</div>
+        </div>
+      </div>
+    </div>
+    <div id="pokeinfo-loading" style="text-align:center;color:var(--muted);font-size:13px;display:none;">Lade Daten...</div>
+  </div>
+</div>
+
+<!-- Lightbox für Imgur-Bild -->
+<div id="img-lightbox" onclick="this.style.display='none'" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9000;align-items:center;justify-content:center;cursor:zoom-out;">
+  <img src="https://i.imgur.com/aw2c7BQ.png" style="max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain;box-shadow:0 0 60px rgba(0,0,0,0.8);">
+</div>
+
+<!-- ══════════════════════ RUN ÜBERSICHT MODAL ══════════════════════ -->
+<div id="run-overview-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:5000;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;width:min(500px,90vw);max-height:80vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <div style="font-family:'Press Start 2P',monospace;font-size:10px;color:var(--accent);letter-spacing:1px;">Run Übersicht</div>
+      <button onclick="hideRunOverview()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;">×</button>
+    </div>
+    <div id="run-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;"></div>
+    <div style="display:flex;gap:8px;">
+      <input id="new-run-name" type="text" placeholder="Run-Name (z.B. Schwarz 2 Run 1)" 
+        style="flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:4px;font-family:'Exo 2',sans-serif;font-size:13px;"
+        onkeydown="if(event.key==='Enter') createRun()">
+      <button class="btn-primary" onclick="createRun()">+ Erstellen</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
@@ -794,43 +946,132 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-const dataRef = db.ref('soullink');
+
+// ── RUN MANAGEMENT ──
+let currentRunId = localStorage.getItem('soullink_current_run') || 'soullink';
+let dataRef = db.ref(currentRunId);
+let runsRef = db.ref('__runs__');
+let currentListener = null;
+
+function getDataRef() { return db.ref(currentRunId); }
+
+function switchToRun(runId) {
+  if (currentListener) db.ref(currentRunId).off('value', currentListener);
+  currentRunId = runId;
+  localStorage.setItem('soullink_current_run', runId);
+  dataRef = db.ref(currentRunId);
+  subscribeToRun();
+  hideRunOverview();
+}
+
+function subscribeToRun() {
+  if (currentListener) db.ref(currentRunId).off('value', currentListener);
+  currentListener = db.ref(currentRunId).on('value', (snapshot) => {
+    if (isSaving) return;
+    const val = snapshot.val();
+    if (val) {
+      data = val;
+      if (!data.routes || data.routes.length === 0) data.routes = initRoutes();
+      if (!data.links) data.links = [];
+      if (!data.encounters) data.encounters = [];
+      if (!data.gymState) data.gymState = {};
+    } else {
+      data = { links:[], encounters:[], routes:initRoutes(), gymState:{} };
+    }
+    // Update subtitle
+    runsRef.once('value', snap => {
+      const runs = snap.val() || {};
+      const run = runs[currentRunId];
+      const subtitle = document.getElementById('run-subtitle');
+      if (subtitle) subtitle.textContent = run ? run.name : 'Pokémon Schwarz 2 · Linus · Jonah · Jannik';
+    });
+    render();
+    document.getElementById('loading-overlay').style.display = 'none';
+  });
+}
+
+function createRun() {
+  const name = document.getElementById('new-run-name').value.trim();
+  if (!name) return;
+  const runId = 'run_' + Date.now();
+  const meta = { name, created: Date.now() };
+  runsRef.child(runId).set(meta);
+  db.ref(runId).set({ links:[], encounters:[], routes:initRoutes(), gymState:{} });
+  document.getElementById('new-run-name').value = '';
+  switchToRun(runId);
+  renderRunList();
+}
+
+function showRunOverview() {
+  document.getElementById('run-overview-modal').style.display = 'flex';
+  renderRunList();
+}
+function hideRunOverview() {
+  document.getElementById('run-overview-modal').style.display = 'none';
+}
+
+function renderRunList() {
+  runsRef.once('value', snap => {
+    const runs = snap.val() || {};
+    const list = document.getElementById('run-list');
+    const entries = Object.entries(runs).sort((a,b) => (b[1].created||0)-(a[1].created||0));
+    if (entries.length === 0) {
+      list.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">Noch keine Runs. Erstelle deinen ersten!</div>';
+      return;
+    }
+    list.innerHTML = entries.map(([id, meta]) => `
+      <div class="run-item ${id===currentRunId?'active-run':''}" onclick="switchToRun('${id}')">
+        <div>
+          <div class="run-item-name">${meta.name}</div>
+          <div class="run-item-meta">${meta.created ? new Date(meta.created).toLocaleDateString('de-DE') : ''}</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          ${id===currentRunId ? '<span style="font-size:10px;color:var(--accent);font-family:\'Press Start 2P\',monospace;">AKTIV</span>' : ''}
+          <button onclick="event.stopPropagation();renameRun('${id}','${meta.name.replace(/'/g,"\\'")}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px;" title="Umbenennen">✏️</button>
+          <button onclick="event.stopPropagation();deleteRun('${id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px;" title="Löschen">🗑</button>
+        </div>
+      </div>
+    `).join('');
+  });
+}
+
+function deleteRun(runId) {
+  if (!confirm('Run wirklich löschen? Alle Daten gehen verloren.')) return;
+  runsRef.child(runId).remove();
+  db.ref(runId).remove();
+  if (currentRunId === runId) switchToRun('soullink');
+  else renderRunList();
+}
+
+function renameRun(runId, currentName) {
+  const newName = prompt('Neuer Name:', currentName);
+  if (!newName || !newName.trim()) return;
+  runsRef.child(runId).update({ name: newName.trim() });
+  if (currentRunId === runId) {
+    const subtitle = document.getElementById('run-subtitle');
+    if (subtitle) subtitle.textContent = newName.trim();
+  }
+  renderRunList();
+}
+
+// Init: ensure default run exists in run list
+runsRef.child('soullink').once('value', snap => {
+  if (!snap.val()) runsRef.child('soullink').set({ name: 'Schwarz 2 – Run 1', created: Date.now() });
+});
+subscribeToRun();
 
 const PLAYERS = ['linus','jonah','jannik'];
 const PLAYER_LABELS = { linus:'Linus', jonah:'Jonah', jannik:'Jannik' };
 
-let data = {
-  links: [],
-  encounters: [],
-  routes: [],
-  gymState: {}
-};
-
+let data = { links:[], encounters:[], routes:[], gymState:{} };
 let isSaving = false;
 
 function save() {
   isSaving = true;
-  dataRef.set(data).finally(() => {
+  db.ref(currentRunId).set(data).finally(() => {
     setTimeout(() => isSaving = false, 300);
   });
 }
-
-// Echtzeit-Sync
-dataRef.on('value', (snapshot) => {
-  if (isSaving) return;
-  const val = snapshot.val();
-  if (val) {
-    data = val;
-    if (!data.routes || data.routes.length === 0) data.routes = initRoutes();
-    if (!data.links) data.links = [];
-    if (!data.encounters) data.encounters = [];
-    if (!data.gymState) data.gymState = {};
-  } else {
-    data.routes = initRoutes();
-  }
-  render();
-  document.getElementById('loading-overlay').style.display = 'none';
-});
 
 // ── TABS ──
 function showTab(name) {
@@ -1429,6 +1670,418 @@ function renderDeaths() {
     const el = document.getElementById('header-count-'+p);
     if (el) el.textContent = counts[p];
   });
+}
+
+// ── POKÉMON INFO TAB ──
+const TYPE_COLORS = {
+  normal:'#9e9e9e',fire:'#ff7043',water:'#42a5f5',electric:'#ffd54f',grass:'#66bb6a',
+  ice:'#80deea',fighting:'#ef5350',poison:'#ab47bc',ground:'#bcaaa4',flying:'#90caf9',
+  psychic:'#f48fb1',bug:'#aed581',rock:'#bfa87a',ghost:'#7e57c2',dragon:'#5c6bc0',
+  dark:'#6d4c41',steel:'#90a4ae'
+};
+const TYPE_DE = {
+  normal:'Normal',fire:'Feuer',water:'Wasser',electric:'Elektro',grass:'Pflanze',
+  ice:'Eis',fighting:'Kampf',poison:'Gift',ground:'Boden',flying:'Flug',
+  psychic:'Psycho',bug:'Käfer',rock:'Gestein',ghost:'Geist',dragon:'Drache',
+  dark:'Unlicht',steel:'Stahl'
+};
+
+// Gen 5 Typen (kein Fee)
+const GEN5_TYPES = ['normal','fire','water','electric','grass','ice','fighting','poison','ground','flying','psychic','bug','rock','ghost','dragon','dark','steel'];
+
+// Cache für Typ-Daten
+const typeDataCache = {};
+
+async function fetchTypeDataGen5(typeName) {
+  if (typeDataCache[typeName]) return typeDataCache[typeName];
+  const res = await fetch(`https://pokeapi.co/api/v2/type/${typeName}`);
+  const data = await res.json();
+
+  // Basis damage_relations
+  let dr = data.damage_relations;
+
+  // past_damage_relations: schaue ob es einen Eintrag für generation-v gibt
+  // Das Feld enthält die letzten Generationen in der die alten Daten gültig waren
+  if (data.past_damage_relations && data.past_damage_relations.length > 0) {
+    // Suche nach generation-v oder früheren Einträgen die für Gen 5 relevant sind
+    const gen5Past = data.past_damage_relations.find(p => p.generation.name === 'generation-v');
+    if (gen5Past) {
+      // Merge: past überschreibt aktuelle Einträge
+      const pastDr = gen5Past.damage_relations;
+      dr = mergeDamageRelations(dr, pastDr);
+    }
+  }
+
+  // Konvertiere in einfaches {typ: multiplikator} Format, Fee ignorieren
+  const result = {};
+  GEN5_TYPES.forEach(t => result[t] = 1);
+
+  (dr.no_damage_to || []).forEach(t => { if (result[t.name] !== undefined) result[t.name] = 0; });
+  (dr.half_damage_to || []).forEach(t => { if (result[t.name] !== undefined) result[t.name] = 0.5; });
+  (dr.double_damage_to || []).forEach(t => { if (result[t.name] !== undefined) result[t.name] = 2; });
+
+  typeDataCache[typeName] = result;
+  return result;
+}
+
+function mergeDamageRelations(current, past) {
+  // Past-Einträge überschreiben aktuelle (für die Richtung "damage_to")
+  const merged = {
+    no_damage_to: [...(current.no_damage_to || [])],
+    half_damage_to: [...(current.half_damage_to || [])],
+    double_damage_to: [...(current.double_damage_to || [])],
+    no_damage_from: [...(current.no_damage_from || [])],
+    half_damage_from: [...(current.half_damage_from || [])],
+    double_damage_from: [...(current.double_damage_from || [])]
+  };
+  // Past-Einträge einfügen/überschreiben
+  ['no_damage_to','half_damage_to','double_damage_to','no_damage_from','half_damage_from','double_damage_from'].forEach(key => {
+    if (past[key]) {
+      past[key].forEach(entry => {
+        // Entferne aus allen anderen Listen
+        ['no_damage_to','half_damage_to','double_damage_to'].forEach(k => {
+          merged[k] = merged[k].filter(e => e.name !== entry.name);
+        });
+        merged[key].push(entry);
+      });
+    }
+  });
+  return merged;
+}
+
+async function calcEffectivenessGen5(defTypes) {
+  // Lade Angriffs-Effektivität für jeden Gen5-Typ gegen die Verteidiger-Typen
+  const atkData = await Promise.all(GEN5_TYPES.map(t => fetchTypeDataGen5(t)));
+  const result = {};
+  GEN5_TYPES.forEach((atk, idx) => {
+    let mult = 1;
+    defTypes.forEach(def => {
+      if (def === 'fairy') return; // Fee ignorieren
+      const val = atkData[idx][def];
+      if (val !== undefined) mult *= val;
+    });
+    result[atk] = mult;
+  });
+  return result;
+}
+
+function openPokeInfoDrop() {
+  loadPokeList().then(() => filterPokeInfo(document.getElementById('pokeinfo-search').value || ''));
+}
+
+function filterPokeInfo(query) {
+  const list = document.getElementById('pokeinfo-list');
+  const inp = document.getElementById('pokeinfo-search');
+  if (!list) return;
+  positionDrop(inp, list);
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? POKEMON_LIST.filter(p => p.name.toLowerCase().includes(q) || String(p.id).startsWith(q)).slice(0,40)
+    : POKEMON_LIST.slice(0,40);
+  list.innerHTML = filtered.map(p => `
+    <div class="poke-option" onmousedown="selectPokeInfo(${p.id},'${p.name.replace(/'/g,"\\'")}')">
+      <img src="${spriteUrl(p.id)}" alt="${p.name}" loading="lazy">
+      <span class="poke-num">#${String(p.id).padStart(3,'0')}</span>
+      <span>${p.name}</span>
+    </div>
+  `).join('');
+  list.classList.add('open');
+}
+
+// Speichert Attacken des aktuellen Pokemon
+let currentMovesByLevel = [];
+
+function updateMoves() {
+  const level = parseInt(document.getElementById('level-slider').value);
+  document.getElementById('level-display').textContent = level;
+  if (!currentMovesByLevel.length) return;
+
+  const movesEl = document.getElementById('pokeinfo-moves');
+
+  // Alle Attacken bis zum gewählten Level
+  const available = currentMovesByLevel.filter(m => m.level <= level);
+  if (!available.length) {
+    movesEl.innerHTML = '<div style="color:var(--muted);font-size:13px;">Keine Attacken bei diesem Level.</div>';
+    return;
+  }
+
+  // Simuliere welche 4 das Pokemon tatsächlich hat:
+  // Gehe Level für Level durch, füge Attacken ein, verdrän­ge älteste wenn > 4
+  const levelGroups = {};
+  available.forEach(m => {
+    if (!levelGroups[m.level]) levelGroups[m.level] = [];
+    levelGroups[m.level].push(m);
+  });
+
+  let moveset = []; // Namen der tatsächlich gehaltenen Attacken
+  Object.keys(levelGroups).sort((a,b) => a-b).forEach(lvl => {
+    levelGroups[lvl].forEach(m => moveset.push(m.name));
+    while (moveset.length > 4) moveset.shift();
+  });
+
+  const movesetSet = new Set(moveset);
+
+  // Zeige ALLE verfügbaren Attacken an, neueste oben
+  movesEl.innerHTML = [...available].reverse().map(m => {
+    const inMoveset = movesetSet.has(m.name);
+    return `
+    <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--surface2);border-radius:6px;${!inMoveset ? 'opacity:0.7;' : ''}">
+      <span style="font-family:'Press Start 2P',monospace;font-size:9px;color:${inMoveset ? 'var(--muted)' : 'var(--dead)'};min-width:36px;">Lv.${m.level}</span>
+      <span style="font-weight:700;font-size:14px;color:${inMoveset ? 'var(--text)' : 'var(--dead)'};">${m.name}</span>
+      <span class="type-badge" style="background:${TYPE_COLORS[m.type]||'#888'};color:#fff;font-size:11px;${!inMoveset ? 'filter:grayscale(0.5);' : ''}">${TYPE_DE[m.type]||m.type}</span>
+    </div>`;
+  }).join('');
+}
+
+// Gen5-Formen die in Schwarz 2 verfügbar sind (whitelist)
+const GEN5_VARIETIES = new Set([
+  // Deoxys Formen
+  'deoxys-normal','deoxys-attack','deoxys-defense','deoxys-speed',
+  // Wormadam
+  'wormadam-plant','wormadam-sandy','wormadam-trash',
+  // Giratina
+  'giratina-altered','giratina-origin',
+  // Shaymin
+  'shaymin-land','shaymin-sky',
+  // Rotom
+  'rotom','rotom-heat','rotom-wash','rotom-frost','rotom-fan','rotom-mow',
+  // Tiergeist (nur Inkarnationsformen in BW2, Therians via Spiegel)
+  'tornadus-incarnate','tornadus-therian',
+  'thundurus-incarnate','thundurus-therian',
+  'landorus-incarnate','landorus-therian',
+  // Kyurem
+  'kyurem','kyurem-black','kyurem-white',
+  // Keldeo
+  'keldeo-ordinary','keldeo-resolute',
+  // Meloetta
+  'meloetta-aria','meloetta-pirouette',
+  // Castform
+  'castform','castform-sunny','castform-rainy','castform-snowy',
+  // Cherrim
+  'cherrim-overcast','cherrim-sunshine',
+  // Arceus (alle Formen)
+  'arceus','arceus-fighting','arceus-flying','arceus-poison','arceus-ground',
+  'arceus-rock','arceus-bug','arceus-ghost','arceus-steel','arceus-fire',
+  'arceus-water','arceus-grass','arceus-electric','arceus-psychic',
+  'arceus-ice','arceus-dragon','arceus-dark',
+  // Basculin
+  'basculin-red-striped','basculin-blue-striped',
+  // Deerling / Sawsbuck Jahreszeiten
+  'deerling-spring','deerling-summer','deerling-autumn','deerling-winter',
+  'sawsbuck-spring','sawsbuck-summer','sawsbuck-autumn','sawsbuck-winter',
+  // Tornadus etc. standard
+]);
+
+const STAT_LABELS = {
+  hp:'KP', attack:'Angriff', defense:'Verteidigung',
+  'special-attack':'Sp. Angriff', 'special-defense':'Sp. Vert.', speed:'Initiative'
+};
+const STAT_COLORS = {
+  hp:'#ef5350', attack:'#ff7043', defense:'#ffd54f',
+  'special-attack':'#42a5f5', 'special-defense':'#66bb6a', speed:'#ab47bc'
+};
+
+function calcLv50Stat(base, statName) {
+  // Formel ohne EVs/IVs/Nature (neutrale Schätzung: IVs=15, EVs=0, Nature=1.0)
+  const iv = 15;
+  if (statName === 'hp') {
+    return Math.floor(((2 * base + iv) * 50 / 100) + 50 + 10);
+  }
+  return Math.floor((((2 * base + iv) * 50 / 100) + 5) * 1.0);
+}
+
+function renderStats(stats) {
+  const bst = stats.reduce((s, st) => s + st.base_stat, 0);
+  const maxStat = 255;
+  document.getElementById('pokeinfo-stats').innerHTML = stats.map(st => {
+    const base = st.base_stat;
+    const name = st.stat.name;
+    const pct = Math.min(100, Math.round(base / maxStat * 100));
+    const color = STAT_COLORS[name] || '#7986cb';
+    const label = STAT_LABELS[name] || name;
+    return `<div style="display:flex;flex-direction:column;gap:2px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:10px;color:var(--muted);font-weight:600;">${label}</span>
+        <span style="font-family:'Press Start 2P',monospace;font-size:9px;color:var(--text);">${base}</span>
+      </div>
+      <div style="background:var(--surface2);border-radius:3px;height:6px;overflow:hidden;">
+        <div style="width:${pct}%;height:100%;background:${color};border-radius:3px;transition:width 0.4s ease;"></div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('bst-value').textContent = bst;
+}
+
+// Aktuell geladene Formen
+let currentForms = [];
+let currentBaseName = '';
+
+async function switchForm(formName) {
+  const form = currentForms.find(f => f.apiName === formName);
+  if (!form) return;
+  document.getElementById('pokeinfo-sprite').src = spriteUrl(form.id);
+  await loadFormData(form.id, currentBaseName, form.displayName);
+}
+
+async function loadFormData(pokeId, baseName, displayName) {
+  try {
+    const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${pokeId}`);
+    const poke = await res.json();
+
+    // Typen Gen5
+    let types = poke.types.map(t => t.type.name);
+    if (poke.past_types && poke.past_types.length > 0) {
+      const gen5Past = poke.past_types.find(p => p.generation.name === 'generation-v');
+      if (gen5Past) types = gen5Past.types.map(t => t.type.name);
+    }
+    types = types.filter(t => t !== 'fairy');
+
+    document.getElementById('pokeinfo-types').innerHTML = types.map(t =>
+      `<span class="type-badge" style="background:${TYPE_COLORS[t]||'#888'};color:#fff;">${TYPE_DE[t]||t}</span>`
+    ).join('');
+
+    // Effektivität
+    const eff = await calcEffectivenessGen5(types);
+    const groups = { '4x':[], '2x':[], '0.5x':[], '0.25x':[], '0x':[] };
+    Object.entries(eff).forEach(([atk, mult]) => {
+      if (mult === 4) groups['4x'].push(atk);
+      else if (mult === 2) groups['2x'].push(atk);
+      else if (mult === 0.5) groups['0.5x'].push(atk);
+      else if (mult === 0.25) groups['0.25x'].push(atk);
+      else if (mult === 0) groups['0x'].push(atk);
+    });
+    function typeBadges(arr) {
+      if (!arr.length) return '<span style="color:var(--muted);font-size:12px;">–</span>';
+      return `<div class="eff-types">${arr.map(t=>`<span class="type-badge" style="background:${TYPE_COLORS[t]||'#888'};color:#fff;">${TYPE_DE[t]||t}</span>`).join('')}</div>`;
+    }
+    document.getElementById('eff-4x').innerHTML = typeBadges(groups['4x']);
+    document.getElementById('eff-2x').innerHTML = typeBadges(groups['2x']);
+    document.getElementById('eff-half').innerHTML = typeBadges(groups['0.5x']);
+    document.getElementById('eff-quarter').innerHTML = typeBadges(groups['0.25x']);
+    document.getElementById('eff-immune').innerHTML = typeBadges(groups['0x']);
+
+    // Stats
+    renderStats(poke.stats);
+
+    // Fähigkeiten
+    const abilityHtml = await Promise.all(poke.abilities.map(async a => {
+      const isHidden = a.is_hidden;
+      const abilityRes = await fetch(a.ability.url);
+      const abilityData = await abilityRes.json();
+      const deName = abilityData.names.find(n => n.language.name === 'de');
+      const displayName2 = deName ? deName.name : a.ability.name;
+      return `<div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:14px;font-weight:700;color:var(--text);">${displayName2}</span>
+        ${isHidden ? '<span style="font-size:10px;background:rgba(121,134,203,0.2);border:1px solid var(--muted);color:var(--muted);padding:2px 7px;border-radius:3px;font-weight:700;letter-spacing:1px;">VF</span>' : ''}
+      </div>`;
+    }));
+    document.getElementById('pokeinfo-abilities').innerHTML = abilityHtml.join('');
+
+    // Attacken (immer von Basis-Pokemon)
+    const levelMoves = poke.moves
+      .flatMap(m => m.version_group_details
+        .filter(vg => vg.version_group.name === 'black-2-white-2' && vg.move_learn_method.name === 'level-up')
+        .map(vg => ({ apiName: m.move.name, level: vg.level_learned_at }))
+      ).sort((a, b) => a.level - b.level);
+
+    const moveNames = await Promise.all(levelMoves.map(async m => {
+      try {
+        const mr = await fetch(`https://pokeapi.co/api/v2/move/${m.apiName}`);
+        const md = await mr.json();
+        const deEntry = md.names.find(n => n.language.name === 'de');
+        const typeName = md.type ? md.type.name : 'normal';
+        return { level: m.level, name: deEntry ? deEntry.name : m.apiName, type: typeName };
+      } catch { return { level: m.level, name: m.apiName, type: 'normal' }; }
+    }));
+
+    currentMovesByLevel = moveNames;
+    updateMoves();
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+async function selectPokeInfo(id, name) {
+  document.getElementById('pokeinfo-list').classList.remove('open');
+  document.getElementById('pokeinfo-search').value = name;
+  document.getElementById('pokeinfo-output').style.display = 'none';
+  document.getElementById('pokeinfo-loading').style.display = 'block';
+  document.getElementById('pokeinfo-loading').textContent = 'Lade Daten...';
+  currentMovesByLevel = [];
+  currentBaseName = name;
+  currentForms = [];
+
+  document.getElementById('pokeinfo-sprite').src = spriteUrl(id);
+  document.getElementById('pokeinfo-sprite').style.display = 'block';
+
+  // Wiki-Link
+  const wikiLink = document.getElementById('pokeinfo-wikilink');
+  wikiLink.href = `https://www.pokewiki.de/${encodeURIComponent(name)}`;
+  wikiLink.textContent = name;
+
+  try {
+    // Lade Species für Formen
+    const specRes = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${id}`);
+    const species = await specRes.json();
+
+    const varieties = species.varieties || [];
+    const gen5Forms = varieties.filter(v => {
+      const n = v.pokemon.name;
+      // Wenn es nur eine Form gibt (is_default und keine anderen), kein Dropdown
+      if (varieties.length === 1) return true;
+      // Whitelistcheck für bekannte Gen5-Formen
+      if (GEN5_VARIETIES.has(n)) return true;
+      // Default-Form immer erlaubt
+      if (v.is_default) return true;
+      // Generell: Formen ohne Bindestrich-Suffix nach dem Namen sind Basisformen
+      return false;
+    });
+
+    // Formen-Dropdown befüllen
+    const formsWrap = document.getElementById('pokeinfo-forms-wrap');
+    const formsSelect = document.getElementById('pokeinfo-forms');
+
+    if (gen5Forms.length > 1) {
+      // Deutsche Formen-Namen bauen
+      const formLabels = {
+        'normal':'Normal','attack':'Angriff','defense':'Verteidigung','speed':'Initiative',
+        'altered':'Wandelgestalt','origin':'Urgestalt','land':'Landform','sky':'Himmelsform',
+        'heat':'Wärme','wash':'Wasser','frost':'Frost','fan':'Wind','mow':'Pflanze',
+        'incarnate':'Inkarnationsform','therian':'Tiergeistform',
+        'black':'Schwarz','white':'Weiß','ordinary':'Normalform','resolute':'Entschlossene Form',
+        'aria':'Gesangsform','pirouette':'Pirouettenform',
+        'red-striped':'Rote Streifen','blue-striped':'Blaue Streifen',
+        'plant':'Pflanze','sandy':'Sand','trash':'Müll',
+        'overcast':'Bewölkt','sunshine':'Sonnig',
+        'spring':'Frühling','summer':'Sommer','autumn':'Herbst','winter':'Winter',
+        'sunny':'Sonnig','rainy':'Regnerisch','snowy':'Schneeig',
+      };
+
+      currentForms = await Promise.all(gen5Forms.map(async v => {
+        const pokeRes = await fetch(v.pokemon.url);
+        const pokeData = await pokeRes.json();
+        const suffix = v.pokemon.name.replace(species.name + '-', '');
+        const label = v.is_default ? 'Standardform' : (formLabels[suffix] || suffix);
+        return { apiName: v.pokemon.name, id: pokeData.id, displayName: label, isDefault: v.is_default };
+      }));
+
+      formsSelect.innerHTML = currentForms.map(f =>
+        `<option value="${f.apiName}">${f.displayName}</option>`
+      ).join('');
+      formsWrap.style.display = 'block';
+    } else {
+      formsWrap.style.display = 'none';
+    }
+
+    // Lade Daten der Standard-Form
+    await loadFormData(id, name, name);
+
+    document.getElementById('pokeinfo-loading').style.display = 'none';
+    document.getElementById('pokeinfo-output').style.display = 'block';
+  } catch(e) {
+    console.error(e);
+    document.getElementById('pokeinfo-loading').textContent = 'Fehler beim Laden. Bitte erneut versuchen.';
+  }
 }
 </script>
 </body>
