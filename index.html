@@ -675,6 +675,14 @@
   .run-item.active-run { border-color: var(--accent); background: rgba(79,195,247,0.08); }
   .run-item-name { font-weight: 700; font-size: 14px; }
   .run-item-meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .enc-highlight { animation: encPulse 3s ease; }
+  @keyframes encPulse {
+    0%,100% { background: transparent; }
+    15%,85% { background: rgba(79,195,247,0.15); }
+  }
+  /* Pfeile bei number input verstecken */
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   .stat-row { display:flex;align-items:center;gap:8px; }
   .stat-label { font-size:11px;color:var(--muted);min-width:90px;font-weight:600; }
   .stat-val { font-family:'Press Start 2P',monospace;font-size:10px;min-width:26px;text-align:right;color:var(--text); }
@@ -779,8 +787,14 @@ window.addEventListener('load', () => {
 <!-- ══════════════════════ ENCOUNTER ══════════════════════ -->
 <div id="tab-encounter" class="tab">
   <p class="section-title">Encounter-Tracker</p>
-  <div class="toolbar">
+  <div class="toolbar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
     <button class="btn-primary" onclick="addEncounter()">+ Encounter hinzufügen</button>
+    <div class="poke-dropdown-wrap" style="flex:1;min-width:200px;max-width:320px;">
+      <input class="poke-search" id="enc-search" type="text" placeholder="Pokémon suchen..."
+        autocomplete="off" oninput="filterEncSearch(this.value)" onfocus="openEncSearch()"
+        style="padding:8px 12px;font-size:13px;">
+      <div class="poke-list" id="enc-search-list"></div>
+    </div>
   </div>
   <div class="table-wrapper">
     <table class="encounter-table">
@@ -871,6 +885,14 @@ window.addEventListener('load', () => {
             <span style="font-family:'Press Start 2P',monospace;font-size:9px;color:var(--muted);">BST</span>
             <span id="bst-value" style="font-family:'Press Start 2P',monospace;font-size:13px;color:var(--gold);"></span>
           </div>
+          <div id="pokeinfo-catchrate" style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border);display:none;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-family:'Press Start 2P',monospace;font-size:8px;color:var(--muted);">FANGRATE</span>
+              <span style="font-size:12px;color:var(--text);">
+                <span id="catchrate-value"></span><span id="catchrate-chance" style="color:var(--muted);margin-left:4px;"></span>
+              </span>
+            </div>
+          </div>
         </div>
 
         <!-- Rechte Spalte -->
@@ -897,8 +919,11 @@ window.addEventListener('load', () => {
         <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
           <span style="font-family:'Press Start 2P',monospace;font-size:10px;color:var(--muted);">Lv.</span>
           <input type="range" id="level-slider" min="1" max="100" value="50"
-            style="flex:1;accent-color:var(--accent);" oninput="updateMoves()">
-          <span id="level-display" style="font-family:'Press Start 2P',monospace;font-size:16px;color:var(--accent);min-width:36px;text-align:right;">50</span>
+            style="flex:1;accent-color:var(--accent);" oninput="syncLevelInput('slider')">
+          <input type="number" id="level-input" min="1" max="100" value="50"
+            style="font-family:'Press Start 2P',monospace;font-size:14px;color:var(--accent);width:52px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;text-align:center;padding:2px 4px;-moz-appearance:textfield;"
+            oninput="syncLevelInput('number')"
+            onwheel="this.blur()">
         </div>
         <div id="pokeinfo-moves" style="display:flex;flex-direction:column;gap:8px;">
           <div style="color:var(--muted);font-size:13px;">Wähle ein Pokémon aus.</div>
@@ -1599,9 +1624,126 @@ function addEncounter() {
 }
 
 function removeEnc(i) { data.encounters.splice(i,1); save(); render(); }
-function updateEnc(i, field, val) { data.encounters[i][field]=val; save(); }
 
-// Remove unused enc drop functions (openEncDrop, filterEncPoke, selectEncPoke kept for safety)
+function updateEnc(i, field, val) {
+  data.encounters[i][field] = val;
+  // Wenn Status auf "gefangen" gesetzt: automatisch Link erstellen
+  if (field === 'status' && val === 'caught') {
+    autoCreateLink(i);
+  }
+  save();
+}
+
+function autoCreateLink(encIdx) {
+  const enc = data.encounters[encIdx];
+  // Prüfe ob alle 3 Spieler ein Pokemon haben
+  const hasAll = PLAYERS.every(p => enc[p+'_id']);
+  if (!hasAll) return;
+  // Prüfe ob bereits ein Link mit genau diesen Pokemon existiert
+  const alreadyExists = data.links.some(link =>
+    PLAYERS.every(p => link[p+'_id'] == enc[p+'_id'])
+  );
+  if (alreadyExists) return;
+  // Neuen Link erstellen
+  const newLink = { dead:{linus:false,jonah:false,jannik:false}, note:'', killer:null };
+  PLAYERS.forEach(p => {
+    newLink[p+'_id'] = enc[p+'_id'];
+    newLink[p+'_name'] = enc[p+'_name'];
+    newLink[p+'_nick'] = '';
+  });
+  if (!data.links) data.links = [];
+  data.links.push(newLink);
+}
+
+// ── ENCOUNTER SUCHE ──
+// Lade Evolutionsketten-Cache
+const evoCache = {};
+
+async function getEvolutionChain(speciesId) {
+  if (evoCache[speciesId]) return evoCache[speciesId];
+  try {
+    const specRes = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${speciesId}`);
+    const spec = await specRes.json();
+    const chainRes = await fetch(spec.evolution_chain.url);
+    const chain = await chainRes.json();
+    // Alle Pokemon in der Kette sammeln
+    const names = [];
+    function traverse(node) {
+      names.push(node.species.name);
+      node.evolves_to.forEach(traverse);
+    }
+    traverse(chain.chain);
+    // Cache für alle in der Kette
+    names.forEach(n => evoCache[n] = names);
+    return names;
+  } catch { return []; }
+}
+
+function openEncSearch() {
+  loadPokeList().then(() => filterEncSearch(document.getElementById('enc-search').value || ''));
+}
+
+function filterEncSearch(query) {
+  const list = document.getElementById('enc-search-list');
+  const inp = document.getElementById('enc-search');
+  if (!list) return;
+  positionDrop(inp, list);
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? POKEMON_LIST.filter(p => p.name.toLowerCase().includes(q) || String(p.id).startsWith(q)).slice(0, 40)
+    : POKEMON_LIST.slice(0, 40);
+  list.innerHTML = filtered.map(p => `
+    <div class="poke-option" onmousedown="jumpToEncounter(${p.id},'${p.name.replace(/'/g,"\\'")}')">
+      <img src="${spriteUrl(p.id)}" alt="${p.name}" loading="lazy">
+      <span class="poke-num">#${String(p.id).padStart(3,'0')}</span>
+      <span>${p.name}</span>
+    </div>
+  `).join('');
+  list.classList.add('open');
+}
+
+async function jumpToEncounter(pokeId, pokeName) {
+  document.getElementById('enc-search-list').classList.remove('open');
+  document.getElementById('enc-search').value = pokeName;
+
+  // Evolutionskette holen – gibt englische API-Namen zurück
+  const chainNames = await getEvolutionChain(pokeId);
+
+  // Alle IDs der Kette via POKEMON_LIST (DE-Namen → IDs via PokeAPI-ID)
+  // Hole IDs direkt von der API für jeden Namen in der Kette
+  const chainIds = new Set([pokeId]);
+  await Promise.all(chainNames.map(async apiName => {
+    try {
+      const r = await fetch(`https://pokeapi.co/api/v2/pokemon/${apiName}`);
+      const d = await r.json();
+      chainIds.add(d.id);
+    } catch {}
+  }));
+
+  // Suche in Encountern – alle Treffer, nicht nur der erste
+  const foundIndices = [];
+  data.encounters.forEach((enc, i) => {
+    if (PLAYERS.some(p => chainIds.has(Number(enc[p+'_id'])))) foundIndices.push(i);
+  });
+
+  // Markierung entfernen
+  document.querySelectorAll('.enc-highlight').forEach(r => r.classList.remove('enc-highlight'));
+
+  if (foundIndices.length === 0) {
+    alert(`Kein Encounter mit ${pokeName} oder seiner Entwicklungslinie gefunden.`);
+    return;
+  }
+
+  // Alle Treffer markieren, zum ersten scrollen
+  const rows = document.querySelectorAll('#encounter-body tr');
+  foundIndices.forEach(idx => {
+    if (rows[idx]) rows[idx].classList.add('enc-highlight');
+  });
+  if (rows[foundIndices[0]]) {
+    rows[foundIndices[0]].scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  setTimeout(() => document.querySelectorAll('.enc-highlight').forEach(r => r.classList.remove('enc-highlight')), 3000);
+}
 
 // ROUTES
 function renderRoutes() {
@@ -1791,9 +1933,24 @@ function filterPokeInfo(query) {
 // Speichert Attacken des aktuellen Pokemon
 let currentMovesByLevel = [];
 
+function syncLevelInput(source) {
+  const slider = document.getElementById('level-slider');
+  const input = document.getElementById('level-input');
+  if (!slider || !input) return;
+  if (source === 'slider') {
+    input.value = slider.value;
+  } else {
+    let v = Math.min(100, Math.max(1, parseInt(input.value) || 1));
+    input.value = v;
+    slider.value = v;
+  }
+  updateMoves();
+}
+
 function updateMoves() {
-  const level = parseInt(document.getElementById('level-slider').value);
-  document.getElementById('level-display').textContent = level;
+  const slider = document.getElementById('level-slider');
+  if (!slider) return;
+  const level = parseInt(slider.value);
   if (!currentMovesByLevel.length) return;
 
   const movesEl = document.getElementById('pokeinfo-moves');
@@ -1963,15 +2120,18 @@ async function loadFormData(pokeId, baseName, displayName) {
     // Stats
     renderStats(poke.stats);
 
-    // Fähigkeiten
+    // Fähigkeiten als Reflinks
     const abilityHtml = await Promise.all(poke.abilities.map(async a => {
       const isHidden = a.is_hidden;
       const abilityRes = await fetch(a.ability.url);
       const abilityData = await abilityRes.json();
       const deName = abilityData.names.find(n => n.language.name === 'de');
-      const displayName2 = deName ? deName.name : a.ability.name;
+      const displayName = deName ? deName.name : a.ability.name;
       return `<div style="display:flex;align-items:center;gap:10px;">
-        <span style="font-size:14px;font-weight:700;color:var(--text);">${displayName2}</span>
+        <a href="https://www.pokewiki.de/${encodeURIComponent(displayName)}" target="_blank"
+          style="font-size:14px;font-weight:700;color:var(--text);text-decoration:none;border-bottom:1px solid var(--border);"
+          onmouseover="this.style.color='var(--accent)';this.style.borderColor='var(--accent)'"
+          onmouseout="this.style.color='var(--text)';this.style.borderColor='var(--border)'">${displayName}</a>
         ${isHidden ? '<span style="font-size:10px;background:rgba(121,134,203,0.2);border:1px solid var(--muted);color:var(--muted);padding:2px 7px;border-radius:3px;font-weight:700;letter-spacing:1px;">VF</span>' : ''}
       </div>`;
     }));
@@ -2071,6 +2231,29 @@ async function selectPokeInfo(id, name) {
       formsWrap.style.display = 'block';
     } else {
       formsWrap.style.display = 'none';
+    }
+
+    // Catchrate aus Species-Daten
+    const captureRate = species.capture_rate;
+    if (captureRate !== undefined) {
+      // Gen 5 exakte Formel (Cave of Dragonflies / Bulbapedia)
+      // Bei vollen KP, Pokéball (B=1), kein Status (S=1), normales Gras (G=1)
+      // X = C / 3
+      const X = captureRate / 3;
+      let chancePct;
+      if (X >= 255) {
+        chancePct = 100;
+      } else {
+        // Y = floor(65536 / sqrt(sqrt(255 / X)))
+        const Y = Math.floor(65536 / Math.sqrt(Math.sqrt(255 / X)));
+        // Fangchance = (Y / 65536)^3
+        chancePct = Math.min(100, Math.pow(Y / 65536, 3) * 100);
+      }
+      document.getElementById('catchrate-value').textContent = captureRate;
+      document.getElementById('catchrate-chance').textContent = `(${chancePct.toFixed(1)}%)`;
+      document.getElementById('pokeinfo-catchrate').style.display = 'block';
+    } else {
+      document.getElementById('pokeinfo-catchrate').style.display = 'none';
     }
 
     // Lade Daten der Standard-Form
