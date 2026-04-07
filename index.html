@@ -191,6 +191,14 @@
   .dead-btn.is-killer { background: rgba(239,83,80,0.5); border-color: #ff1744; color: #ff1744; box-shadow: 0 0 8px rgba(255,23,68,0.5); }
 
   .link-card.all-dead { border-color: rgba(239,83,80,0.4); opacity: 0.6; }
+  .link-card.pinned { background: rgba(165,214,167,0.08); border-color: rgba(165,214,167,0.4); }
+  .link-card.pinned:hover { border-color: rgba(165,214,167,0.7); }
+  .pin-btn { background:none;border:1px solid var(--border);color:var(--muted);width:28px;height:28px;border-radius:4px;cursor:pointer;font-size:14px;transition:all 0.2s;flex-shrink:0; }
+  .pin-btn:hover { border-color:var(--accent3);color:var(--accent3); }
+  .pin-btn.is-pinned { background:rgba(165,214,167,0.2);border-color:var(--accent3);color:var(--accent3); }
+  .section-divider { grid-column:1/-1;display:flex;align-items:center;gap:12px;margin:8px 0 4px; }
+  .section-divider span { font-family:'Press Start 2P',monospace;font-size:9px;letter-spacing:2px;white-space:nowrap; }
+  .section-divider::before,.section-divider::after { content:'';flex:1;height:1px;background:var(--border); }
 
   .add-link-btn {
     background: none;
@@ -1319,17 +1327,23 @@ function renderLinks() {
   if (!grid) return;
   if (data.links.length === 0) {
     grid.innerHTML = '<div class="empty-state">Noch keine Links eingetragen.<br>Klicke "+ Link hinzufügen".</div>';
-    // still add the button
     grid.innerHTML += `<button class="add-link-btn" onclick="addLink()">+ Link hinzufügen</button>`;
     return;
   }
-  grid.innerHTML = data.links.map((link, i) => {
+
+  const pinned = data.links.map((l,i) => ({...l, _i:i})).filter(l => l.pinned);
+  const unpinned = data.links.map((l,i) => ({...l, _i:i})).filter(l => !l.pinned);
+
+  function renderCard(link, i) {
     const allDead = PLAYERS.every(p => link.dead && link.dead[p]);
     return `
-    <div class="link-card ${allDead ? 'all-dead' : ''}">
+    <div class="link-card ${allDead ? 'all-dead' : ''} ${link.pinned ? 'pinned' : ''}">
       <div class="link-card-header">
         <span>Link #${i+1}</span>
-        <button onclick="removeLink(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;" title="Löschen">×</button>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button class="pin-btn ${link.pinned ? 'is-pinned' : ''}" onclick="togglePin(${i})" title="${link.pinned ? 'Aus Team entfernen' : 'Ins Team pinnen'}">📌</button>
+          <button onclick="removeLink(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;" title="Löschen">×</button>
+        </div>
       </div>
       ${PLAYERS.map(p => {
         const pkId = link[p+'_id'] || '';
@@ -1372,7 +1386,24 @@ function renderLinks() {
       }).join('')}
       <input type="text" value="${link.note || ''}" placeholder="Notiz..." oninput="updateLink(${i},'note',this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:5px 10px;border-radius:4px;font-family:'Exo 2',sans-serif;font-size:12px;width:100%;">
     </div>`;
-  }).join('') + `<button class="add-link-btn" onclick="addLink()">+ Link hinzufügen</button>`;
+  }
+
+  let html = '';
+
+  // Team-Bereich
+  if (pinned.length > 0) {
+    html += `<div class="section-divider"><span style="color:var(--accent3);">TEAM</span></div>`;
+    html += pinned.map(link => renderCard(link, link._i)).join('');
+  }
+
+  // Box-Bereich
+  if (unpinned.length > 0) {
+    html += `<div class="section-divider"><span style="color:var(--muted);">BOX</span></div>`;
+    html += unpinned.map(link => renderCard(link, link._i)).join('');
+  }
+
+  html += `<button class="add-link-btn" onclick="addLink()">+ Link hinzufügen</button>`;
+  grid.innerHTML = html;
 
   // close dropdowns on outside click (handled globally)
 }
@@ -1502,6 +1533,11 @@ function removeLink(i) {
 function updateLink(i, field, val) {
   data.links[i][field] = val;
   save();
+}
+
+function togglePin(i) {
+  data.links[i].pinned = !data.links[i].pinned;
+  save(); render();
 }
 
 function toggleDead(i, player) {
