@@ -1581,6 +1581,20 @@ function renderLive() {
   const empty = document.getElementById('live-empty');
   if (!grid || !empty) return;
 
+  // Wenn der User gerade mit einem Map-Zuordnungs-Dropdown interagiert,
+  // diesen Tick komplett skippen — sonst klappt das <select> zu, weil
+  // der innerHTML-Rebuild das DOM ersetzt.
+  const active = document.activeElement;
+  if (active && active.id && active.id.startsWith('live-route-')) return;
+
+  // Werte der Route-Dropdowns vor dem Rebuild sichern (Fallback falls
+  // doch mal rebuilt wird ohne dass das Dropdown gerade fokussiert war)
+  const _savedRoutes = {};
+  LIVE_PLAYERS.forEach(p => {
+    const sel = document.getElementById('live-route-' + p.slot);
+    if (sel && sel.value) _savedRoutes[p.slot] = sel.value;
+  });
+
   // Hat irgendein Spieler überhaupt Daten?
   const anyData = LIVE_PLAYERS.some(p => data['autoTeam_' + p.slot]);
   empty.style.display = anyData ? 'none' : 'block';
@@ -1636,6 +1650,18 @@ function renderLive() {
                       : `<div style="text-align:center;color:var(--muted);font-size:11px;padding:14px 0;">Kein Team in RAM</div>`}
       </div>`;
   }).join('');
+
+  // Vorherige Dropdown-Auswahl wiederherstellen (falls Banner noch da)
+  LIVE_PLAYERS.forEach(p => {
+    const saved = _savedRoutes[p.slot];
+    if (!saved) return;
+    const sel = document.getElementById('live-route-' + p.slot);
+    if (sel) {
+      // Nur setzen wenn der Wert noch als Option existiert
+      const hasOpt = Array.from(sel.options).some(o => o.value === saved);
+      if (hasOpt) sel.value = saved;
+    }
+  });
 }
 
 // Speichert Map → Route Zuordnung global (Run-übergreifend) und lokal sofort
