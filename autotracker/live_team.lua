@@ -1,0 +1,353 @@
+-- ═══════════════════════════════════════════════════════════
+--  Live-AutoTracker für Pokémon Schwarz 2 (DE)
+--  Liest das Team + Map-ID einmal pro Sekunde und schreibt
+--  alles in eine JSON-Datei. Die Python-Brücke schickt sie
+--  dann an Firebase.
+-- ═══════════════════════════════════════════════════════════
+
+memory.usememorydomain("Main RAM")
+
+local PARTY_BASE   = 0x21E32C
+local MON_SIZE     = 220
+local PCBOX_BASE   = 0x205924
+local BOX_MON_SIZE = 136
+local BOX_COUNT    = 24
+local BOX_SLOTS    = 30
+-- ★ KANONISCHE MAP-ID  (wie IronMon-Tracker es macht) ★
+-- parent + child Map-Header (u16). Outdoor: parent == child.
+-- Indoor (Gebäude in Stadt): child ist spezifischer.
+-- DE-Offset = US - 0x100 (gleich wie Party-Block).
+local MAP_HEADER_PARENT = 0x246748   -- US: 0x246848
+local MAP_HEADER_CHILD  = 0x246760   -- US: 0x246860
+local ENEMY_BASE      = 0x0258774   -- Gegner-Team (Wild + Trainer)
+local ENEMY_SLOTS     = 6
+local BADGE_ADDR      = nil         -- TODO: via find_badges.lua finden
+                                    -- Wenn gesetzt, wird als state.badges gesendet
+-- HP wird jetzt direkt aus dem verschlüsselten Party-Stats-Block
+-- gelesen (siehe decryptPartyStats unten). Keine externen Adressen
+-- mehr nötig.
+local OUTPUT_FILE  = "C:/trash/PokemonWebsite/autotracker/state.json"
+
+local A_POS = {[0]=0,0,0,0,0,0, 1,1,2,3,2,3, 1,1,2,3,2,3, 1,1,2,3,2,3}
+local B_POS = {[0]=1,1,2,3,2,3, 0,0,0,0,0,0, 2,3,1,1,3,2, 2,3,1,1,3,2}
+local C_POS = {[0]=2,3,1,1,3,2, 2,3,1,1,3,2, 0,0,0,0,0,0, 3,2,3,2,1,1}
+
+-- Wachstumsgruppen-Codes: mf=MedFast, ms=MedSlow, s=Slow,
+-- f=Fast, er=Erratic, fl=Fluctuating. Default = mf.
+local GROWTH = setmetatable({
+  -- ── Gen 5 Starter (alle Medium Slow) ──
+  [495]="ms",[496]="ms",[497]="ms",   -- Serpifeu-Linie
+  [498]="ms",[499]="ms",[500]="ms",   -- Floink-Linie
+  [501]="ms",[502]="ms",[503]="ms",   -- Ottaro-Linie
+  -- ── Andere Gen-5 Medium-Slow-Linien ──
+  [506]="ms",[507]="ms",[508]="ms",   -- Yorkleff / Terribark / Bissbark
+  [519]="ms",[520]="ms",[521]="ms",   -- Piccolente / Swaroness
+  [524]="ms",[525]="ms",[526]="ms",   -- Kiesling / Sedimantur / Brockoloss
+  [532]="ms",[533]="ms",[534]="ms",   -- Praktibalk / Strepoli / Meistagrif
+  [535]="ms",[536]="ms",[537]="ms",   -- Schallquap / Mebrana / Branawarz
+  [540]="ms",[541]="ms",[542]="ms",   -- Strawickl / Folikon / Matrifol
+  [543]="ms",[544]="ms",[545]="ms",   -- Toxiped / Rollum / Cerapendra
+  [570]="ms",[571]="ms",              -- Zorua / Zoroark
+  [574]="ms",[575]="ms",[576]="ms",   -- Mollimorba / Hypnomorba / Morbitesse
+  [577]="ms",[578]="ms",[579]="ms",   -- Monozyto / Mitodos / Zytomega
+  [599]="ms",[600]="ms",[601]="ms",   -- Klikk / Kliklak / Klikdiklak
+  [607]="ms",[608]="ms",[609]="ms",   -- Lichtel / Laternecto / Skelabra
+  [619]="ms",[620]="ms",              -- Lin-Fu / Wie-Shu
+  [624]="ms",[625]="ms",              -- Gladiantri / Caesurio
+  -- ── Gen 5 Slow-Linien ──
+  [551]="s",[552]="s",[553]="s",      -- Rokkaiman / Rabigator
+  [554]="s",[555]="s",                -- Flampion / Flampivian
+  [582]="s",[583]="s",[584]="s",      -- Gelatini-Linie
+  [602]="s",[603]="s",[604]="s",      -- Zapplardin-Linie
+  [610]="s",[611]="s",[612]="s",      -- Milza / Sharfax / Maxax
+  [627]="s",[628]="s",                -- Geronimatz / Washakwil
+  [629]="s",[630]="s",                -- Skallyk / Grypheldis
+  [633]="s",[634]="s",[635]="s",      -- Kapuno / Duodino / Trikephalo
+  [636]="s",[637]="s",                -- Ignivor / Ramoth
+  -- ── Gen-5-Legendäre & Mythen (alle Slow) ──
+  [494]="s",                          -- Victini
+  [638]="s",[639]="s",[640]="s",      -- Kobalium / Terrakium / Viridium
+  [641]="s",[642]="s",                -- Boreos / Voltolos
+  [643]="s",[644]="s",                -- Reshiram / Zekrom
+  [645]="s",[646]="s",                -- Demeteros / Kyurem
+  [647]="s",[648]="s",[649]="s",      -- Keldeo / Meloetta / Genesect
+  -- ── Gen 5 Fast-Linien ──
+  [517]="f",[518]="f",                -- Somniam / Somnivora
+  [531]="f",                          -- Ohrdoch
+  [572]="f",[573]="f",                -- Picochilla / Chillabell
+  [594]="f",                          -- Mamolida
+  -- ── Legendäre & Mythen aus älteren Gens (alle Slow) ──
+  [144]="s",[145]="s",[146]="s",      -- Arktos / Zapdos / Lavados
+  [150]="s",[151]="s",                -- Mewtu / Mew
+  [243]="s",[244]="s",[245]="s",      -- Raikou / Entei / Suicune
+  [249]="s",[250]="s",                -- Lugia / Ho-Oh
+  [377]="s",[378]="s",[379]="s",      -- Regirock / Regice / Registeel
+  [380]="s",[381]="s",                -- Latias / Latios
+  [382]="s",[383]="s",[384]="s",      -- Kyogre / Groudon / Rayquaza
+  [385]="s",[386]="s",                -- Jirachi / Deoxys
+  [483]="s",[484]="s",[485]="s",      -- Dialga / Palkia / Heatran
+  [486]="s",[487]="s",[488]="s",      -- Regigigas / Giratina / Cresselia
+  [489]="s",[490]="s",[491]="s",      -- Phione / Manaphy / Darkrai
+  [492]="s",[493]="s",                -- Shaymin / Arceus
+  -- ── Mythen mit Medium Slow ──
+  [251]="ms",                         -- Celebi
+  [480]="ms",[481]="ms",[482]="ms",   -- Selfe / Vesprit / Tobutz
+  -- ── Pseudo-Legendäre (alle Slow) ──
+  [147]="s",[148]="s",[149]="s",      -- Dratini-Linie
+  [246]="s",[247]="s",[248]="s",      -- Larvitar-Linie
+  [371]="s",[372]="s",[373]="s",      -- Kindwurm / Draschel / Brutalanda
+  [374]="s",[375]="s",[376]="s",      -- Tanhel / Metang / Metagross
+  [443]="s",[444]="s",[445]="s",      -- Kaumalat / Knarksel / Knakrack
+  -- ── Lucario-Linie & andere wichtige Pokémon ──
+  [447]="ms",[448]="ms",              -- Riolu / Lucario
+}, { __index = function() return "mf" end })
+
+local function expForLevel(rate, L)
+  if L <= 1 then return 0 end
+  if rate == "mf" then return L*L*L end
+  if rate == "ms" then return math.max(0, math.floor((6*L*L*L)/5 - 15*L*L + 100*L - 140)) end
+  if rate == "f"  then return math.floor((4*L*L*L)/5) end
+  if rate == "s"  then return math.floor((5*L*L*L)/4) end
+  return L*L*L
+end
+
+local function levelFromExp(species, exp)
+  local rate = GROWTH[species]
+  for L = 1, 100 do
+    if expForLevel(rate, L + 1) > exp then return L end
+  end
+  return 100
+end
+
+local function mult32(a, b)
+  local al, bl = a % 0x10000, b % 0x10000
+  local ah = math.floor(a / 0x10000) % 0x10000
+  local bh = math.floor(b / 0x10000) % 0x10000
+  return (((ah * bl + al * bh) % 0x10000) * 0x10000 + al * bl) % 0x100000000
+end
+
+-- Generischer Decoder für eine beliebige Pokémon-Adresse
+local function decryptAt(base)
+  local pid = memory.read_u32_le(base)
+  if pid == 0 then return nil end
+  local checksum = memory.read_u16_le(base + 6)
+  if checksum == 0 then return nil end
+  local seed, sum = checksum, 0
+  local words = {}
+  for i = 0, 63 do
+    seed = (mult32(seed, 0x41C64E6D) + 0x6073) % 0x100000000
+    local key = math.floor(seed / 0x10000) % 0x10000
+    words[i] = memory.read_u16_le(base + 8 + i * 2) ~ key
+    sum = (sum + words[i]) % 0x10000
+  end
+  if sum ~= checksum then return nil end
+
+  local shift = ((pid & 0x3E000) >> 13) % 24
+  local bA, bB, bC = A_POS[shift], B_POS[shift], C_POS[shift]
+
+  local species = words[bA*16]
+  if species < 1 or species > 700 then return nil end
+  local item    = words[bA*16 + 1]
+  local otTid   = words[bA*16 + 2]   -- OT Trainer-ID
+  local otSid   = words[bA*16 + 3]   -- OT Secret-ID
+  local exp     = words[bA*16 + 4] + words[bA*16 + 5] * 0x10000
+  local ability = (words[bA*16 + 6] >> 8) & 0xFF
+
+  local moves = {
+    words[bB*16], words[bB*16 + 1],
+    words[bB*16 + 2], words[bB*16 + 3],
+  }
+
+  local nick = ""
+  for i = 0, 10 do
+    local ch = words[bC*16 + i]
+    if ch == 0xFFFF or ch == 0 then break end
+    if ch >= 32 and ch < 128 then nick = nick .. string.char(ch)
+    else nick = nick .. "?" end
+  end
+
+  return {
+    pid = pid,
+    species = species, item = item, exp = exp, ability = ability,
+    otTid = otTid, otSid = otSid,
+    moves = moves, nick = nick, level = levelFromExp(species, exp),
+  }
+end
+
+-- Entschlüsselt den Party-Stats-Block (+0x88..+0xDB, 84 Bytes / 42 u16-Wörter).
+-- Verwendet PID als Initial-Seed (NICHT Checksum) und dieselbe LCRNG.
+-- Liefert Level + curHP + maxHP zurück.
+local function decryptPartyStats(base, pid)
+  local seed = pid
+  local words = {}
+  for i = 0, 41 do
+    seed = (mult32(seed, 0x41C64E6D) + 0x6073) % 0x100000000
+    local key = math.floor(seed / 0x10000) % 0x10000
+    words[i] = memory.read_u16_le(base + 0x88 + i * 2) ~ key
+  end
+  return {
+    statusCond = words[0] + words[1] * 0x10000,
+    level      = words[2] & 0xFF,
+    curHP      = words[3],
+    maxHP      = words[4],
+  }
+end
+
+local function decryptMon(slot)
+  local base = PARTY_BASE + slot * MON_SIZE
+  local m = decryptAt(base)
+  if not m then return nil end
+  local pid = memory.read_u32_le(base)
+  local ps = decryptPartyStats(base, pid)
+  -- Validieren: nur wenn Level + maxHP plausibel sind, ersetzen
+  if ps.level >= 1 and ps.level <= 100 and ps.maxHP >= 1 and ps.maxHP <= 999 then
+    m.level  = ps.level         -- echtes Level statt EXP-Schätzung
+    m.curHP  = ps.curHP
+    m.maxHP  = ps.maxHP
+    m.status = ps.statusCond
+  end
+  return m
+end
+
+-- PC-Box komplett auslesen (24 × 30 = 720 Slots, kleinster Aufwand:
+-- erst PID prüfen, nur bei nichtleer entschlüsseln)
+local function readPcBox()
+  local box = {}
+  for b = 0, BOX_COUNT - 1 do
+    for s = 0, BOX_SLOTS - 1 do
+      local addr = PCBOX_BASE + (b * BOX_SLOTS + s) * BOX_MON_SIZE
+      if memory.read_u32_le(addr) ~= 0 then
+        local m = decryptAt(addr)
+        if m then
+          m.box  = b + 1
+          m.slot = s + 1
+          box[#box + 1] = m
+        end
+      end
+    end
+  end
+  return box
+end
+
+-- ── Minimaler JSON-Serializer ──
+local function jsonEscape(s)
+  return (s:gsub("\\", "\\\\"):gsub('"', '\\"'))
+end
+
+local function toJson(v)
+  local t = type(v)
+  if t == "number"  then return tostring(v) end
+  if t == "string"  then return '"' .. jsonEscape(v) .. '"' end
+  if t == "boolean" then return v and "true" or "false" end
+  if t == "nil"     then return "null" end
+  if t == "table" then
+    if #v > 0 or next(v) == nil then
+      local parts = {}
+      for _, x in ipairs(v) do parts[#parts + 1] = toJson(x) end
+      return "[" .. table.concat(parts, ",") .. "]"
+    else
+      local parts = {}
+      for k, x in pairs(v) do
+        parts[#parts + 1] = '"' .. tostring(k) .. '":' .. toJson(x)
+      end
+      return "{" .. table.concat(parts, ",") .. "}"
+    end
+  end
+  return "null"
+end
+
+local lastTeamCount   = 0
+local lastHPSrc       = nil
+local lastBoxCount    = 0
+local lastEnemyCount  = 0
+local lastBattleType  = nil
+local lastWriteOk     = false
+
+local function readEnemyTeam()
+  local t = {}
+  for slot = 0, ENEMY_SLOTS - 1 do
+    local m = decryptAt(ENEMY_BASE + slot * MON_SIZE)
+    if m then
+      m.slot = slot + 1
+      t[#t + 1] = m
+    end
+  end
+  return t
+end
+
+-- (Veraltete HP-Kandidaten-Logik entfernt — HP kommt jetzt aus
+-- decryptPartyStats direkt im decryptMon.)
+
+local function writeState()
+  local team = {}
+  for slot = 0, 5 do
+    local m = decryptMon(slot)
+    if m then team[#team + 1] = m end
+  end
+  -- HP wird jetzt direkt in decryptMon mitausgelesen (encrypted party stats)
+  local box = readPcBox()
+  local enemyTeam = readEnemyTeam()
+  local enemy = enemyTeam[1]                  -- erster Slot = aktueller Gegner
+  -- Wild = 1 Gegner-Slot, Trainer = 2+, kein Kampf = 0
+  local battleType = nil
+  if #enemyTeam == 1 then battleType = "wild"
+  elseif #enemyTeam >= 2 then battleType = "trainer" end
+
+  lastTeamCount  = #team
+  lastBoxCount   = #box
+  lastEnemyCount = #enemyTeam
+  lastBattleType = battleType
+
+  local childMap  = memory.read_u16_le(MAP_HEADER_CHILD)
+  local parentMap = memory.read_u16_le(MAP_HEADER_PARENT)
+  local state = {
+    -- Kanonische Map-ID: child bevorzugt (genauer), parent als Fallback
+    mapHeader       = (childMap > 0) and childMap or parentMap,
+    mapHeaderChild  = childMap,
+    mapHeaderParent = parentMap,
+    team        = team,
+    box         = box,
+    enemy       = enemy,
+    enemyTeam   = enemyTeam,
+    battleType  = battleType,
+    badges      = BADGE_ADDR and memory.read_u8(BADGE_ADDR) or nil,
+    teamCount   = #team,
+    boxCount    = #box,
+    updatedAt   = os.time() * 1000,
+  }
+  local f = io.open(OUTPUT_FILE, "w")
+  if f then
+    f:write(toJson(state))
+    f:close()
+    lastWriteOk = true
+  else
+    lastWriteOk = false
+  end
+end
+
+-- ── Hauptschleife ──
+local frame = 0
+while true do
+  frame = frame + 1
+  if frame % 60 == 1 then writeState() end
+
+  gui.text(8, 8,  "AutoTracker " .. (lastWriteOk and "AKTIV" or "(...)"))
+  gui.text(8, 24, string.format("Map-ID: %d (parent %d)",
+    memory.read_u16_le(MAP_HEADER_CHILD), memory.read_u16_le(MAP_HEADER_PARENT)))
+  gui.text(8, 40, string.format("Team:   %d", lastTeamCount))
+  gui.text(8, 56, string.format("Box:    %d", lastBoxCount))
+  if lastBattleType then
+    gui.text(8, 72, string.format("Kampf:  %s (%d)", lastBattleType, lastEnemyCount))
+  else
+    gui.text(8, 72, "Kampf:  -")
+  end
+  -- HP der ersten 3 Slots (direkt aus Party-Block entschlüsselt)
+  for slot = 0, 2 do
+    local m = decryptMon(slot)
+    if m and m.curHP then
+      gui.text(8, 92 + slot * 14, string.format(
+        "S%d: Lv%2d  %3d/%3d", slot + 1, m.level, m.curHP, m.maxHP))
+    end
+  end
+  emu.frameadvance()
+end
