@@ -777,11 +777,23 @@ window.addEventListener('load', () => {
 
 <nav>
   <button class="active" onclick="showTab('pokemon')">🔍 Pokémon</button>
+  <button onclick="showTab('live')">🎮 Live</button>
   <button onclick="showTab('links')">🔗 Links</button>
   <button onclick="showTab('encounter')">⚡ Encounter</button>
   <button onclick="showTab('routen')">🗺️ Routen</button>
   <button onclick="showTab('gym')">🏅 Gym / Level Cap</button>
 </nav>
+
+<!-- ══════════════════════ LIVE (AutoTracker) ══════════════════════ -->
+<div id="tab-live" class="tab">
+  <p class="section-title">AutoTracker · Live-Teams</p>
+  <div id="live-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;"></div>
+  <div id="live-empty" style="display:none;text-align:center;color:var(--muted);padding:40px;font-size:13px;line-height:1.6;">
+    Noch keine Live-Daten.<br>
+    Jeder Mitspieler muss <code style="background:var(--surface2);padding:2px 6px;border-radius:3px;">bridge_trio.py --player &lt;name&gt;</code> laufen lassen
+    (oder <code style="background:var(--surface2);padding:2px 6px;border-radius:3px;">start_&lt;name&gt;.bat</code> doppelklicken).
+  </div>
+</div>
 
 <!-- ══════════════════════ LINKS ══════════════════════ -->
 <div id="tab-links" class="tab">
@@ -796,7 +808,6 @@ window.addEventListener('load', () => {
 <div id="tab-encounter" class="tab">
   <p class="section-title">Encounter-Tracker</p>
   <div class="toolbar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-    <button class="btn-primary" onclick="addEncounter()">+ Encounter hinzufügen</button>
     <div class="poke-dropdown-wrap" style="flex:1;min-width:200px;max-width:320px;">
       <input class="poke-search" id="enc-search" type="text" placeholder="Pokémon suchen..."
         autocomplete="off" oninput="filterEncSearch(this.value)" onfocus="openEncSearch()"
@@ -814,7 +825,6 @@ window.addEventListener('load', () => {
           <th>Jannik</th>
           <th>Status</th>
           <th>Notiz</th>
-          <th></th>
         </tr>
       </thead>
       <tbody id="encounter-body"></tbody>
@@ -852,6 +862,17 @@ window.addEventListener('load', () => {
 <div id="tab-pokemon" class="tab active">
   <p class="section-title">Pokémon-Info</p>
   <div style="max-width:700px;margin:0 auto;">
+    <!-- Sub-Tabs: Suche vs. Gegner pro Spieler -->
+    <div style="display:flex;justify-content:center;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+      <button class="pi-subtab active" data-mode="search" onclick="showPiMode('search')"
+        style="background:var(--accent);border:1px solid var(--accent);color:var(--bg);padding:6px 12px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:12px;font-weight:700;letter-spacing:0.5px;transition:all 0.2s;">🔍 Suche</button>
+      <button class="pi-subtab" data-mode="enemy_linus" onclick="showPiMode('enemy_linus')"
+        style="background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:12px;font-weight:600;letter-spacing:0.5px;transition:all 0.2s;">⚔ Linus</button>
+      <button class="pi-subtab" data-mode="enemy_jonah" onclick="showPiMode('enemy_jonah')"
+        style="background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:12px;font-weight:600;letter-spacing:0.5px;transition:all 0.2s;">⚔ Jonah</button>
+      <button class="pi-subtab" data-mode="enemy_jannik" onclick="showPiMode('enemy_jannik')"
+        style="background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:12px;font-weight:600;letter-spacing:0.5px;transition:all 0.2s;">⚔ Jannik</button>
+    </div>
     <!-- Custom Bild (klickbar für Vollbild) -->
     <div style="text-align:center;margin-bottom:20px;">
       <img src="https://i.imgur.com/aw2c7BQ.png" alt="" onclick="document.getElementById('img-lightbox').style.display='flex'"
@@ -861,11 +882,16 @@ window.addEventListener('load', () => {
     <div style="text-align:center;margin-bottom:20px;min-height:130px;display:flex;align-items:center;justify-content:center;">
       <img id="pokeinfo-sprite" src="" alt="" style="width:120px;height:120px;image-rendering:pixelated;display:none;">
     </div>
-    <!-- Search -->
-    <div class="poke-dropdown-wrap" style="margin-bottom:20px;">
+    <!-- Search (sichtbar im Such-Modus) -->
+    <div id="pi-search-wrap" class="poke-dropdown-wrap" style="margin-bottom:20px;">
       <input class="poke-search" id="pokeinfo-search" type="text" placeholder="Pokémon suchen..." autocomplete="off"
         oninput="filterPokeInfo(this.value)" onfocus="openPokeInfoDrop()" style="font-size:15px;padding:10px 14px;">
       <div class="poke-list" id="pokeinfo-list"></div>
+    </div>
+    <!-- Gegner-Placeholder (sichtbar im Gegner-Modus wenn kein Gegner) -->
+    <div id="pi-enemy-empty" style="display:none;text-align:center;margin-bottom:14px;padding:24px;background:var(--surface);border:1px solid var(--border);border-radius:8px;">
+      <div style="color:var(--muted);font-size:13px;">⚔ Kein Gegner im Kampf</div>
+      <div style="color:var(--muted);font-size:11px;margin-top:6px;">Sobald ein Wild- oder Trainer-Kampf bei <span id="pi-enemy-player-label">–</span> läuft, erscheint hier das gegnerische Pokémon.</div>
     </div>
     <!-- Info output -->
     <div id="pokeinfo-output" style="display:none;">
@@ -921,8 +947,8 @@ window.addEventListener('load', () => {
         </div>
       </div>
 
-      <!-- Attacken (volle Breite unten) -->
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:12px;">
+      <!-- Attacken (volle Breite unten) — im Such-Modus sichtbar, im Gegner-Modus versteckt -->
+      <div id="pi-learnset-box" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:12px;">
         <div style="font-family:'Press Start 2P',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:14px;">ATTACKEN BEI LEVEL</div>
         <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
           <span style="font-family:'Press Start 2P',monospace;font-size:10px;color:var(--muted);">Lv.</span>
@@ -936,6 +962,11 @@ window.addEventListener('load', () => {
         <div id="pokeinfo-moves" style="display:flex;flex-direction:column;gap:8px;">
           <div style="color:var(--muted);font-size:13px;">Wähle ein Pokémon aus.</div>
         </div>
+      </div>
+      <!-- Aktuelles Moveset (sichtbar im Gegner-Modus) -->
+      <div id="pi-actual-moves-box" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:12px;">
+        <div style="font-family:'Press Start 2P',monospace;font-size:9px;color:var(--dead);letter-spacing:1px;margin-bottom:10px;">⚔ AKTUELLES MOVESET</div>
+        <div id="pi-actual-moves-list" style="display:flex;flex-direction:column;gap:7px;"></div>
       </div>
     </div>
     <div id="pokeinfo-loading" style="text-align:center;color:var(--muted);font-size:13px;display:none;">Lade Daten...</div>
@@ -995,7 +1026,24 @@ function switchToRun(runId) {
   dataRef = db.ref(currentRunId);
   subscribeToRun();
   hideRunOverview();
+  // Aktiven Run global publishen: andere Frontends + Bridges folgen automatisch
+  db.ref('_active_run').set(runId).catch(()=>{});
 }
+
+// Live-Sync: wenn ein anderer Spieler den aktiven Run wechselt, mitziehen.
+// (Beim Initialload setzt dieser Listener currentRunId, bevor subscribeToRun läuft.)
+db.ref('_active_run').on('value', snap => {
+  const remote = snap.val();
+  if (typeof remote !== 'string' || !remote) return;
+  if (remote === currentRunId) return;
+  // Stiller Switch ohne erneutes _active_run.set (das käme ja gerade von dort)
+  if (currentListener) db.ref(currentRunId).off('value', currentListener);
+  currentRunId = remote;
+  localStorage.setItem('soullink_current_run', remote);
+  dataRef = db.ref(currentRunId);
+  console.log('[Trio] Aktiver Run remote gewechselt →', remote);
+  subscribeToRun();
+});
 
 function subscribeToRun() {
   if (currentListener) db.ref(currentRunId).off('value', currentListener);
@@ -1122,6 +1170,7 @@ function initRoutes() {
     { name: 'Route 19',             type: 'Route',    method: 'Gras',             done: false, note: '' },
     { name: 'Route 20',             type: 'Route',    method: 'Gras',             done: false, note: '' },
     { name: 'Dausing-Hof',          type: 'Gebiet',   method: 'Gras',             done: false, note: '' },
+    { name: 'Vapydro-City',         type: 'Stadt',    method: '–',                done: false, note: '' },
     { name: 'Vapydro-Werke',        type: 'Gebiet',   method: 'Gras',             done: false, note: '' },
     { name: 'Stratos-Kanalisation', type: 'Höhle',    method: '–',                done: false, note: '' },
     { name: 'Alter Fluchtweg',      type: 'Höhle',    method: '–',                done: false, note: '' },
@@ -1134,7 +1183,8 @@ function initRoutes() {
     { name: 'Hain der Täuschung',   type: 'Gebiet',   method: 'Gras',             done: false, note: '' },
     { name: 'Marea-Zugbrücke',      type: 'Gebiet',   method: 'Schwarze Punkte',  done: false, note: '' },
     { name: 'Marea City',           type: 'Stadt',    method: 'Static',           done: false, note: '' },
-    { name: 'Route 6',              type: 'Route',    method: 'Gras/Static',      done: false, note: '' },
+    { name: 'Route 6',              type: 'Route',    method: 'Gras',             done: false, note: '' },
+    { name: 'Route 6 (Static)',     type: 'Geschenk', method: 'Static',           done: false, note: '' },
     { name: 'Elektrolithhöhle',     type: 'Höhle',    method: '–',                done: false, note: '' },
     { name: 'Panaero-Höhle',        type: 'Höhle',    method: '–',                done: false, note: '' },
     { name: 'Kammer der Weisung',   type: 'Höhle',    method: '–',                done: false, note: '' },
@@ -1180,6 +1230,543 @@ function render() {
   renderRoutes();
   renderGyms();
   renderDeaths();
+  renderLive();
+  // Auto-Encounter pro Spieler (mit Cross-Player Dupes-Clause)
+  if (typeof autoFillEncounterTrio === 'function') {
+    PLAYERS.forEach(p => {
+      fillStarterTrio(p);
+      autoFillEncounterTrio(p);
+    });
+    watchCatchTrio();
+    watchDeathsTrio();
+  }
+  // Gegner-Anzeige im Pokémon-Tab (falls Sub-Tab aktiv)
+  if (typeof refreshPiEnemy === 'function') refreshPiEnemy();
+}
+
+// ── LIVE / AUTOTRACKER ──
+// Die Bridge jedes Spielers pusht nach /{runId}/autoTeam_{player}.
+// Die bestehende Subscription auf db.ref(currentRunId) zieht das
+// automatisch in `data` rein — wir rendern hier nur draus.
+const LIVE_PLAYERS = [
+  { slot:'linus',  label:'Linus',  color:'#4fc3f7' },
+  { slot:'jonah',  label:'Jonah',  color:'#a5d6a7' },
+  { slot:'jannik', label:'Jannik', color:'#ffd54f' },
+];
+
+// ── Globale Map-ID → Route Mappings (Run-übergreifend) ──
+let _globalMap = { mapIdToRoute: {} };
+db.ref('_global').on('value', snap => {
+  const v = snap.val() || {};
+  _globalMap = v;
+  if (!_globalMap.mapIdToRoute) _globalMap.mapIdToRoute = {};
+  if (typeof render === 'function') renderLive();
+});
+function getMapMappings() {
+  return (_globalMap && _globalMap.mapIdToRoute) || {};
+}
+function autoMapKey(at) {
+  if (!at) return null;
+  if (at.mapHeader != null && at.mapHeader > 0) return String(at.mapHeader);
+  const parts = [at.mapId, at.mapSubId, at.mapDetailId, at.biomePtr].filter(v => v != null);
+  return parts.length ? parts.join('_') : null;
+}
+
+// Trainer-Kampf erkennen (2+ Gegner oder fremde OT-ID)
+function isTrainerBattle(at) {
+  if (!at) return false;
+  const enemyCount = (at.enemyTeam || []).length;
+  if (enemyCount === 0) return false;
+  if (enemyCount >= 2) return true;
+  const enemy = at.enemy;
+  if (!enemy) return false;
+  const playerTid = ((at.team || [])[0] || {}).otTid;
+  if (enemy.otTid && playerTid != null && enemy.otTid !== playerTid) return true;
+  return false;
+}
+
+// Routes mit Tutorial-Encountern, die übersprungen werden
+// (Anzahl = wie viele am Anfang ignoriert werden)
+const ROUTE_TUTORIAL_SKIP_TRIO = {
+  'Route 19': 1,   // Cheren-Tutorial mit Felilou
+};
+
+// ── Evo-Familie als Set<number> (PokéAPI, gecached) ──
+// Synchron prüfbar via _evoFamilySync; bei Cache-Miss fire-and-forget
+// Prefetch, nächster Tick kann den Dupes-Check ausführen.
+const _evoFamilySync = {};
+const _evoFamilyPending = {};
+function prefetchEvoFamily(speciesId) {
+  const sid = Number(speciesId);
+  if (!sid || _evoFamilySync[sid]) return Promise.resolve(_evoFamilySync[sid]);
+  if (_evoFamilyPending[sid]) return _evoFamilyPending[sid];
+  _evoFamilyPending[sid] = (async () => {
+    try {
+      const s = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${sid}`);
+      const sd = await s.json();
+      const c = await fetch(sd.evolution_chain.url);
+      const cd = await c.json();
+      const names = [];
+      (function walk(n){ names.push(n.species.name); n.evolves_to.forEach(walk); })(cd.chain);
+      const ids = await Promise.all(names.map(async n => {
+        try { const r = await fetch(`https://pokeapi.co/api/v2/pokemon-species/${n}`); return (await r.json()).id; }
+        catch { return null; }
+      }));
+      const set = new Set(ids.filter(x => x != null).map(Number));
+      set.add(sid);
+      for (const id of set) _evoFamilySync[id] = set;
+      return set;
+    } catch {
+      const set = new Set([sid]);
+      _evoFamilySync[sid] = set;
+      return set;
+    } finally {
+      delete _evoFamilyPending[sid];
+    }
+  })();
+  return _evoFamilyPending[sid];
+}
+
+// ── Starter Auto-Fill pro Spieler ──
+// Wenn ein Spieler ein Pokémon auf Team-Slot 1 hat und der Starter-Slot
+// (Route mit method='Starter') noch leer ist, trag's ein. Die normale
+// watchCatchTrio-Pipeline markiert dann _caught=true und triggert den
+// Soullink-Auto-Link, sobald alle 3 ihre Starter haben.
+function fillStarterTrio(player) {
+  const at = data['autoTeam_' + player];
+  if (!at || !Array.isArray(at.team) || at.team.length === 0) return;
+  const starter = at.team[0];
+  if (!starter || !starter.species || !starter.pid) return;
+  const starterRoute = (data.routes || []).find(r => r.method === 'Starter');
+  if (!starterRoute) return;
+  if (!data.encounters) return;
+  const encIdx = data.encounters.findIndex(e => e.route === starterRoute.name);
+  if (encIdx === -1) return;
+  const enc = data.encounters[encIdx];
+  if (enc[player + '_id']) return;   // Slot dieses Spielers schon belegt
+
+  const speciesId = Number(starter.species);
+  const name = (typeof GERMAN_NAMES !== 'undefined' && GERMAN_NAMES[speciesId])
+    || starter.nick || ('#' + speciesId);
+  enc[player + '_id']   = speciesId;
+  enc[player + '_name'] = name;
+  enc[player + '_pid']  = starter.pid;
+  const upd = {};
+  upd[`encounters/${encIdx}/${player}_id`]   = speciesId;
+  upd[`encounters/${encIdx}/${player}_name`] = name;
+  upd[`encounters/${encIdx}/${player}_pid`]  = starter.pid;
+  db.ref(currentRunId).update(upd).catch(()=>{});
+  console.log('[Trio AutoTracker] 🎁 Starter:', player, '→', name);
+}
+
+// ── Per-Spieler Auto-Encounter mit Cross-Player Dupes-Clause ──
+// Schreibt partiell, ohne save() (würde sonst autoTeam_* der Bridge clobbern)
+function autoFillEncounterTrio(player) {
+  const at = data['autoTeam_' + player];
+  if (!at || !at.enemy || !at.enemy.species) return;
+  if (isTrainerBattle(at)) return;
+  const key = autoMapKey(at);
+  if (!key) return;
+  const route = getMapMappings()[key];
+  if (!route || route === '__ignore__') return;
+  const pid = at.enemy.pid;
+  if (!pid) return;
+
+  // Tutorial-Skip (pro Spieler, pro Route)
+  const skipCount = ROUTE_TUTORIAL_SKIP_TRIO[route] || 0;
+  if (skipCount > 0) {
+    if (!data.tutorialSkippedPids) data.tutorialSkippedPids = {};
+    if (!data.tutorialSkippedPids[player]) data.tutorialSkippedPids[player] = {};
+    if (!data.tutorialSkippedPids[player][route]) data.tutorialSkippedPids[player][route] = [];
+    const skipped = data.tutorialSkippedPids[player][route];
+    if (skipped.includes(pid)) return;
+    if (skipped.length < skipCount) {
+      skipped.push(pid);
+      const upd = {};
+      upd[`tutorialSkippedPids/${player}/${route}`] = skipped;
+      db.ref(currentRunId).update(upd).catch(()=>{});
+      console.log('[Trio AutoTracker] ⏭ Tutorial übersprungen:', player, route, '(PID', pid + ')');
+      return;
+    }
+  }
+
+  if (!data.encounters) return;
+  const encIdx = data.encounters.findIndex(e => e.route === route);
+  if (encIdx === -1) return;
+  const enc = data.encounters[encIdx];
+  if (enc[player + '_id']) return;  // Slot dieses Spielers schon gefüllt
+
+  const speciesId = Number(at.enemy.species);
+
+  // Cross-Player Dupes-Clause (Evo-Familien-weit, NUR caught Encounter zählen)
+  // → "Nur gefangene Pokémon blocken" wie vom User gewählt
+  const caughtIds = (data.encounters || [])
+    .filter(e => e.status === 'caught')
+    .flatMap(e => PLAYERS.map(p => Number(e[p + '_id'])).filter(id => id && !isNaN(id)));
+  const uniqueCaught = [...new Set(caughtIds)];
+
+  // Evo-Familien aller benötigten Species müssen im Sync-Cache sein
+  const needed = [speciesId, ...uniqueCaught];
+  const missing = needed.filter(id => !_evoFamilySync[id]);
+  if (missing.length) {
+    missing.forEach(prefetchEvoFamily);
+    return;  // beim nächsten Tick ist's cached
+  }
+  const newFamily = _evoFamilySync[speciesId];
+  const dupe = uniqueCaught.some(id => newFamily.has(id) || _evoFamilySync[id].has(speciesId));
+  if (dupe) {
+    console.log('[Trio AutoTracker] ⏭ Dupe (Evo-Familie) übersprungen:', player, route, '→ #' + speciesId);
+    return;
+  }
+
+  // Eintragen via partial update (touched nicht autoTeam_*)
+  const name = (typeof GERMAN_NAMES !== 'undefined' && GERMAN_NAMES[speciesId])
+    || at.enemy.nick || ('#' + speciesId);
+  enc[player + '_id']   = speciesId;
+  enc[player + '_name'] = name;
+  enc[player + '_pid']  = pid;
+  const upd = {};
+  upd[`encounters/${encIdx}/${player}_id`]   = speciesId;
+  upd[`encounters/${encIdx}/${player}_name`] = name;
+  upd[`encounters/${encIdx}/${player}_pid`]  = pid;
+  db.ref(currentRunId).update(upd).catch(()=>{});
+  console.log('[Trio AutoTracker] Encounter:', player, route, '→', name);
+}
+
+// ── Auto-Fang-Erkennung pro Spieler + Soullink-Detection ──
+// Pro Tick: für jeden Encounter mit gespeicherter _pid prüfen, ob die PID
+// in Team oder Box des jeweiligen Spielers auftaucht → als caught markieren.
+// Wenn alle 3 Spieler caught: enc.status='caught' + automatischer Link.
+function watchCatchTrio() {
+  if (!data.encounters) return;
+  const updates = {};
+  let dirty = false;
+  data.encounters.forEach((enc, encIdx) => {
+    let allCaughtNow = true;
+    PLAYERS.forEach(p => {
+      const pid = enc[p + '_pid'];
+      if (!pid) { allCaughtNow = false; return; }
+      if (enc[p + '_caught']) return;  // bereits markiert
+      const at = data['autoTeam_' + p];
+      if (!at) { allCaughtNow = false; return; }
+      const inTeam = (at.team || []).some(m => m.pid === pid);
+      const inBox  = (at.box  || []).some(m => m.pid === pid);
+      if (inTeam || inBox) {
+        enc[p + '_caught'] = true;
+        updates[`encounters/${encIdx}/${p}_caught`] = true;
+        dirty = true;
+        console.log('[Trio AutoTracker] 🎯 Gefangen:', p, enc.route, '→', enc[p+'_name']);
+      } else {
+        allCaughtNow = false;
+      }
+    });
+    // Soullink komplett, wenn alle 3 caught
+    if (allCaughtNow && enc.status !== 'caught') {
+      enc.status = 'caught';
+      updates[`encounters/${encIdx}/status`] = 'caught';
+      console.log('[Trio AutoTracker] 🔗 Soullink komplett auf', enc.route);
+      const exists = (data.links || []).some(link =>
+        PLAYERS.every(p => link[p+'_id'] == enc[p+'_id'])
+      );
+      if (!exists) {
+        const newLink = { dead:{linus:false,jonah:false,jannik:false}, note:'', killer:null };
+        PLAYERS.forEach(p => {
+          newLink[p+'_id']   = enc[p+'_id'];
+          newLink[p+'_name'] = enc[p+'_name'];
+          newLink[p+'_nick'] = '';
+          newLink[p+'_pid']  = enc[p+'_pid'];   // PID merken für Death-Cascade
+        });
+        if (!data.links) data.links = [];
+        const newIdx = data.links.length;
+        data.links.push(newLink);
+        updates[`links/${newIdx}`] = newLink;
+        console.log('[Trio AutoTracker] ➕ Link erstellt:', enc.route);
+      }
+      dirty = true;
+    }
+  });
+  if (dirty) {
+    db.ref(currentRunId).update(updates).catch(()=>{});
+    renderLinks();
+    renderEncounters();
+  }
+}
+
+// ── Death-Cascade: HP=0 bei einem gelinkten Pokemon → alle 3 als tot markieren ──
+function watchDeathsTrio() {
+  if (!data.links || !data.links.length) return;
+  const updates = {};
+  let dirty = false;
+  data.links.forEach((link, i) => {
+    if (!link.dead) link.dead = {linus:false, jonah:false, jannik:false};
+    // Wenn alle 3 schon tot markiert → nichts mehr zu tun
+    if (PLAYERS.every(p => link.dead[p])) return;
+    // Erster Spieler, dessen Pokemon HP=0 hat → "Killer"-Marker
+    let triggerPlayer = null;
+    for (const p of PLAYERS) {
+      const pid = link[p + '_pid'];
+      if (!pid) continue;                  // manueller Link ohne PID → skip
+      const at = data['autoTeam_' + p];
+      if (!at) continue;
+      const all = [...(at.team || []), ...(at.box || [])];
+      const mon = all.find(m => m.pid === pid);
+      if (mon && typeof mon.curHP === 'number' && mon.curHP === 0) {
+        triggerPlayer = p;
+        break;
+      }
+    }
+    if (triggerPlayer) {
+      PLAYERS.forEach(p => {
+        if (!link.dead[p]) {
+          link.dead[p] = true;
+          updates[`links/${i}/dead/${p}`] = true;
+        }
+      });
+      if (!link.killer) {
+        link.killer = triggerPlayer;
+        updates[`links/${i}/killer`] = triggerPlayer;
+      }
+      dirty = true;
+      console.log('[Trio AutoTracker] 💀 Cascade Death @ Link', i, '— ausgelöst durch', triggerPlayer);
+    }
+  });
+  if (dirty) {
+    db.ref(currentRunId).update(updates).catch(()=>{});
+    renderLinks();
+    renderDeaths();
+  }
+}
+
+function liveAgeLabel(updatedAt) {
+  if (!updatedAt) return '–';
+  const ageS = Math.round((Date.now() - updatedAt) / 1000);
+  if (ageS < 5)   return '<span style="color:#a5d6a7;">live</span>';
+  if (ageS < 30)  return `${ageS}s alt`;
+  if (ageS < 600) return `<span style="color:#ffd54f;">${ageS}s alt</span>`;
+  return `<span style="color:#ef5350;">offline (${Math.round(ageS/60)}m)</span>`;
+}
+
+function liveMonCard(m, isMarkedDead) {
+  const species = m.species;
+  const gname = (GERMAN_NAMES && GERMAN_NAMES[species]) || m.nick || ('#' + species);
+  const nick = m.nick || gname;
+  const cur = m.curHP, max = m.maxHP;
+  const hasHP = (typeof cur === 'number' && typeof max === 'number' && max > 0);
+  const ratio = hasHP ? Math.max(0, Math.min(1, cur / max)) : 1;
+  const fainted = hasHP && cur === 0;
+  const dead = fainted || isMarkedDead;
+  const hpColor = ratio > 0.5 ? '#a5d6a7' : ratio > 0.2 ? '#ffd54f' : '#ef5350';
+  return `
+    <div style="display:flex;gap:8px;align-items:center;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 8px;${dead ? 'opacity:0.5;' : ''}">
+      <img src="${spriteUrl(species)}" style="width:42px;height:42px;image-rendering:pixelated;flex-shrink:0;${dead ? 'filter:grayscale(1);' : ''}">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;justify-content:space-between;gap:6px;align-items:baseline;">
+          <div style="font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${m.nick ? '' : 'font-style:italic;color:var(--muted);'}" title="${nick} · ${gname}">${nick}</div>
+          <div style="font-family:'Press Start 2P',monospace;font-size:9px;color:var(--gold);flex-shrink:0;">Lv${m.level ?? '?'}</div>
+        </div>
+        <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${gname}</div>
+        ${hasHP ? `
+          <div style="display:flex;align-items:center;gap:5px;margin-top:3px;">
+            <div style="flex:1;height:5px;background:rgba(0,0,0,0.35);border-radius:3px;overflow:hidden;">
+              <div style="width:${ratio*100}%;height:100%;background:${hpColor};transition:width 0.3s,background 0.3s;"></div>
+            </div>
+            <div style="font-family:'Press Start 2P',monospace;font-size:8px;color:${hpColor};flex-shrink:0;">${cur}/${max}</div>
+          </div>` : ''}
+      </div>
+    </div>`;
+}
+
+function renderLive() {
+  const grid  = document.getElementById('live-grid');
+  const empty = document.getElementById('live-empty');
+  if (!grid || !empty) return;
+
+  // Hat irgendein Spieler überhaupt Daten?
+  const anyData = LIVE_PLAYERS.some(p => data['autoTeam_' + p.slot]);
+  empty.style.display = anyData ? 'none' : 'block';
+  if (!anyData) { grid.innerHTML = ''; return; }
+
+  grid.innerHTML = LIVE_PLAYERS.map(p => {
+    const at = data['autoTeam_' + p.slot];
+    if (!at) {
+      return `
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;opacity:0.5;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="font-family:'Press Start 2P',monospace;font-size:11px;color:${p.color};letter-spacing:1px;">${p.label}</div>
+            <div style="font-size:10px;color:var(--muted);">keine Bridge aktiv</div>
+          </div>
+          <div style="text-align:center;color:var(--muted);font-size:12px;padding:18px 0;">– offline –</div>
+        </div>`;
+    }
+    const team = Array.isArray(at.team) ? at.team : [];
+    const boxCount = Array.isArray(at.box) ? at.box.length : 0;
+    const mapKey = autoMapKey(at);
+    const mapRoute = mapKey ? getMapMappings()[mapKey] : null;
+    const mapLabel = (at.mapHeader ?? at.mapId ?? '–');
+    const mapDisplay = mapRoute && mapRoute !== '__ignore__'
+      ? `<strong style="color:var(--text);">${mapLabel}</strong> <span style="color:var(--accent3);">· ${mapRoute}</span>`
+      : mapRoute === '__ignore__'
+        ? `<strong style="color:var(--text);">${mapLabel}</strong> <span style="color:var(--muted);">· ignoriert</span>`
+        : `<strong style="color:var(--text);">${mapLabel}</strong>`;
+    const showBanner = mapKey && !mapRoute;
+    return `
+      <div style="background:var(--surface);border:1px solid ${p.color}55;border-radius:8px;padding:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:6px;flex-wrap:wrap;">
+          <div style="font-family:'Press Start 2P',monospace;font-size:11px;color:${p.color};letter-spacing:1px;">${p.label}</div>
+          <div style="font-size:10px;color:var(--muted);">${liveAgeLabel(at.updatedAt)}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:10px;color:var(--muted);gap:6px;flex-wrap:wrap;">
+          <div style="min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;">Map: ${mapDisplay}</div>
+          <div>Box: ${boxCount}</div>
+          <div>Team: ${team.length}/6</div>
+        </div>
+        ${showBanner ? `
+          <div style="background:rgba(255,213,79,0.08);border:1px solid rgba(255,213,79,0.4);border-radius:6px;padding:8px;margin-bottom:10px;font-size:11px;">
+            <div style="margin-bottom:6px;">🗺️ Map <strong>${mapKey}</strong> nicht zugeordnet.</div>
+            <div style="display:flex;gap:5px;flex-wrap:wrap;">
+              <select id="live-route-${p.slot}" style="flex:1;min-width:120px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:3px;font-family:'Exo 2',sans-serif;font-size:11px;">
+                <option value="">– Route wählen –</option>
+                <option value="__ignore__">(diese Map ignorieren)</option>
+                ${(data.routes || []).map(r => `<option value="${r.name}">${r.name}</option>`).join('')}
+              </select>
+              <button onclick="assignMapTrio('${p.slot}', '${mapKey}')" style="background:var(--accent);border:none;color:var(--bg);padding:4px 10px;border-radius:3px;font-size:10px;font-weight:700;cursor:pointer;">OK</button>
+            </div>
+          </div>` : ''}
+        ${team.length ? `<div style="display:flex;flex-direction:column;gap:5px;">${team.map(m => liveMonCard(m, false)).join('')}</div>`
+                      : `<div style="text-align:center;color:var(--muted);font-size:11px;padding:14px 0;">Kein Team in RAM</div>`}
+      </div>`;
+  }).join('');
+}
+
+// Speichert Map → Route Zuordnung global (Run-übergreifend) und lokal sofort
+function assignMapTrio(player, mapKey) {
+  const sel = document.getElementById('live-route-' + player);
+  if (!sel) return;
+  const route = sel.value;
+  if (!route) return;
+  db.ref('_global/mapIdToRoute/' + mapKey).set(route).catch(()=>{});
+  if (!_globalMap.mapIdToRoute) _globalMap.mapIdToRoute = {};
+  _globalMap.mapIdToRoute[mapKey] = route;
+  renderLive();
+}
+
+// Live-Tab pollt alle 2s neu für aktuelles "Xs alt"-Label,
+// auch wenn keine neuen Firebase-Daten kommen.
+setInterval(() => {
+  const tab = document.getElementById('tab-live');
+  if (tab && tab.classList.contains('active')) renderLive();
+}, 2000);
+
+// ── Pokémon-Tab Sub-Modus (Suche vs. ⚔ Gegner pro Spieler) ──
+let piMode = 'search';
+const _lastEnemyKey = {};   // per-player cache: key = "species|ability|moves"
+
+function _setSubtabStyles() {
+  document.querySelectorAll('.pi-subtab').forEach(b => {
+    const active = b.dataset.mode === piMode;
+    b.classList.toggle('active', active);
+    b.style.background   = active ? 'var(--accent)' : 'var(--surface)';
+    b.style.color        = active ? 'var(--bg)'     : 'var(--muted)';
+    b.style.borderColor  = active ? 'var(--accent)' : 'var(--border)';
+    b.style.fontWeight   = active ? '700'           : '600';
+  });
+}
+
+function showPiMode(mode) {
+  piMode = mode;
+  _setSubtabStyles();
+  const isSearch = mode === 'search';
+  const searchWrap = document.getElementById('pi-search-wrap');
+  const emptyEl    = document.getElementById('pi-enemy-empty');
+  const movesBox   = document.getElementById('pi-actual-moves-box');
+  const learnBox   = document.getElementById('pi-learnset-box');
+  if (searchWrap) searchWrap.style.display = isSearch ? '' : 'none';
+  if (isSearch) {
+    if (emptyEl)  emptyEl.style.display  = 'none';
+    if (movesBox) movesBox.style.display = 'none';
+    if (learnBox) learnBox.style.display = '';
+    for (const k in _lastEnemyKey) delete _lastEnemyKey[k];
+  } else {
+    refreshPiEnemy();
+  }
+}
+
+async function refreshPiEnemy() {
+  if (!piMode || !piMode.startsWith('enemy_')) return;
+  const player = piMode.slice('enemy_'.length);
+  const playerLabel = ((typeof LIVE_PLAYERS !== 'undefined' && LIVE_PLAYERS.find(p => p.slot === player)) || {}).label || player;
+  const labelEl = document.getElementById('pi-enemy-player-label');
+  if (labelEl) labelEl.textContent = playerLabel;
+
+  const at = data && data['autoTeam_' + player];
+  const en = at && at.enemy;
+  const emptyEl  = document.getElementById('pi-enemy-empty');
+  const outEl    = document.getElementById('pokeinfo-output');
+  const spriteEl = document.getElementById('pokeinfo-sprite');
+  const movesBox = document.getElementById('pi-actual-moves-box');
+  const learnBox = document.getElementById('pi-learnset-box');
+
+  if (!en || !en.species) {
+    if (emptyEl)  emptyEl.style.display  = 'block';
+    if (outEl)    outEl.style.display    = 'none';
+    if (spriteEl) spriteEl.style.display = 'none';
+    if (movesBox) movesBox.style.display = 'none';
+    if (learnBox) learnBox.style.display = 'none';
+    _lastEnemyKey[player] = null;
+    return;
+  }
+  if (emptyEl) emptyEl.style.display = 'none';
+
+  const key = `${en.species}|${en.ability || 0}|${(en.moves || []).join(',')}`;
+  if (_lastEnemyKey[player] === key) return;   // gleicher Gegner → kein Reload
+
+  const name = (typeof GERMAN_NAMES !== 'undefined' && GERMAN_NAMES[en.species]) || ('#' + en.species);
+  try {
+    await selectPokeInfo(en.species, name);
+  } catch (e) {
+    console.warn('[piEnemy] selectPokeInfo fehlgeschlagen', e);
+    return;
+  }
+
+  // Lernset weg, AKTUELLES MOVESET her
+  if (learnBox) learnBox.style.display = 'none';
+  if (movesBox) movesBox.style.display = 'block';
+  _lastEnemyKey[player] = key;
+
+  // Aktive Fähigkeit überschreiben (statt aller potenziellen)
+  if (en.ability && en.ability > 0) {
+    try {
+      const r = await fetch(`https://pokeapi.co/api/v2/ability/${en.ability}`);
+      const ab = await r.json();
+      const deName = (ab.names || []).find(n => n.language.name === 'de')?.name || ab.name;
+      const abEl = document.getElementById('pokeinfo-abilities');
+      if (abEl) abEl.innerHTML = `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:8px 12px;font-size:13px;color:var(--accent);font-weight:600;">${deName}</div>`;
+    } catch {}
+  }
+
+  // Aktuelle 4 Moves
+  const moves = (en.moves || []).filter(id => id > 0);
+  const list = document.getElementById('pi-actual-moves-list');
+  if (!list) return;
+  if (!moves.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:13px;">Keine Attacken bekannt.</div>';
+    return;
+  }
+  list.innerHTML = moves.map((id, i) =>
+    `<div id="actual-move-${i}" style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:8px 12px;font-size:13px;">Lade...</div>`
+  ).join('');
+  moves.forEach(async (id, i) => {
+    try {
+      const r = await fetch(`https://pokeapi.co/api/v2/move/${id}`);
+      const mv = await r.json();
+      const deName = (mv.names || []).find(n => n.language.name === 'de')?.name || mv.name;
+      const el = document.getElementById('actual-move-' + i);
+      if (el) el.textContent = deName;
+    } catch {
+      const el = document.getElementById('actual-move-' + i);
+      if (el) el.textContent = '#' + id;
+    }
+  });
 }
 
 // ── POKEMON LIST (Gen 1-5, #1-649) – Deutsche Namen ──
@@ -1559,25 +2146,26 @@ function toggleDead(i, player) {
 }
 
 // ENCOUNTERS
+function syncEncountersToRoutes() {
+  const old = data.encounters || [];
+  data.encounters = (data.routes || []).map(r => {
+    const existing = old.find(e => e.route === r.name);
+    return existing || { route:r.name, linus_id:'', linus_name:'', jonah_id:'', jonah_name:'', jannik_id:'', jannik_name:'', status:'uncaught', note:'' };
+  });
+}
+
 function renderEncounters() {
   const body = document.getElementById('encounter-body');
   if (!body) return;
+  syncEncountersToRoutes();
   if (data.encounters.length === 0) {
-    body.innerHTML = '<tr><td colspan="6" class="empty-state">Noch keine Encounter.</td></tr>';
+    body.innerHTML = '<tr><td colspan="6" class="empty-state">Keine Routen vorhanden.</td></tr>';
     return;
   }
   body.innerHTML = data.encounters.map((enc, i) => {
-    const routeOptions = data.routes.map(r =>
-      `<option value="${r.name}" ${enc.route === r.name ? 'selected' : ''}>${r.name}</option>`
-    ).join('');
     return `
     <tr>
-      <td>
-        <select onchange="updateEnc(${i},'route',this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 8px;border-radius:4px;font-family:'Exo 2',sans-serif;font-size:13px;width:100%;">
-          <option value="" ${!enc.route?'selected':''}>– Route wählen –</option>
-          ${routeOptions}
-        </select>
-      </td>
+      <td style="font-weight:600;">${enc.route}</td>
       ${['linus','jonah','jannik'].map(p => {
         const pkId = enc[p+'_id'] || '';
         const pkName = enc[p+'_name'] || '';
@@ -1603,7 +2191,6 @@ function renderEncounters() {
         </select>
       </td>
       <td><input type="text" value="${enc.note||''}" placeholder="Notiz..." oninput="updateEnc(${i},'note',this.value)" style="background:transparent;border:none;color:var(--text);font-family:'Exo 2',sans-serif;font-size:13px;width:100%;"></td>
-      <td><button onclick="removeEnc(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;">×</button></td>
     </tr>
   `;
   }).join('');
@@ -1653,13 +2240,6 @@ function updateEncSprite(encIdx, player, id) {
     }
   }
 }
-
-function addEncounter() {
-  data.encounters.push({ route:'', linus_id:'', linus_name:'', jonah_id:'', jonah_name:'', jannik_id:'', jannik_name:'', status:'uncaught', note:'' });
-  save(); render();
-}
-
-function removeEnc(i) { data.encounters.splice(i,1); save(); render(); }
 
 function updateEnc(i, field, val) {
   data.encounters[i][field] = val;
