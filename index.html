@@ -777,17 +777,35 @@ window.addEventListener('load', () => {
 
 <nav>
   <button class="active" onclick="showTab('pokemon')">🔍 Pokémon</button>
-  <button onclick="showTab('live')">🎮 Live</button>
   <button onclick="showTab('links')">🔗 Links</button>
   <button onclick="showTab('encounter')">⚡ Encounter</button>
   <button onclick="showTab('routen')">🗺️ Routen</button>
   <button onclick="showTab('gym')">🏅 Gym / Level Cap</button>
 </nav>
 
-<!-- ══════════════════════ LIVE (AutoTracker) ══════════════════════ -->
-<div id="tab-live" class="tab">
-  <p class="section-title">AutoTracker · Live-Teams</p>
-  <div id="live-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;"></div>
+<!-- ══════════════════════ LINKS (Live-Soullinks) ══════════════════════ -->
+<div id="tab-links" class="tab">
+  <p class="section-title">Soullinks · Live</p>
+
+  <div style="display:flex;justify-content:flex-end;margin-bottom:12px;gap:8px;">
+    <button onclick="openManualLinkModal()" style="background:var(--accent);border:none;color:var(--bg);padding:7px 14px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;">+ Manueller Link</button>
+  </div>
+
+  <!-- Spieler-Status (Map, Alter, Map-Mapping-UI bei unbekannter Map) -->
+  <div id="links-status" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:18px;"></div>
+
+  <!-- Soullink-Listen in 2 Spalten: Team und Box -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:18px;">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;">
+      <div style="font-family:'Press Start 2P',monospace;font-size:10px;color:var(--accent3);letter-spacing:1px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);">⚔ TEAM</div>
+      <div id="links-team-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;">
+      <div style="font-family:'Press Start 2P',monospace;font-size:10px;color:var(--muted);letter-spacing:1px;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);">📦 BOX</div>
+      <div id="links-box-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+    </div>
+  </div>
+
   <div id="live-empty" style="display:none;text-align:center;color:var(--muted);padding:40px;font-size:13px;line-height:1.6;">
     Noch keine Live-Daten.<br>
     Jeder Mitspieler muss <code style="background:var(--surface2);padding:2px 6px;border-radius:3px;">bridge_trio.py --player &lt;name&gt;</code> laufen lassen
@@ -795,13 +813,27 @@ window.addEventListener('load', () => {
   </div>
 </div>
 
-<!-- ══════════════════════ LINKS ══════════════════════ -->
-<div id="tab-links" class="tab">
-  <p class="section-title">Link-Tabelle</p>
-  <div class="toolbar">
-    <button class="btn-primary" onclick="addLink()">+ Link hinzufügen</button>
+<!-- ══════════════════════ Pokémon-Detail-Modal (für Klick auf Live-Karten) ══════════════════════ -->
+<div id="link-detail-modal" onclick="if(event.target===this)hideLinkDetail()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:6000;align-items:center;justify-content:center;cursor:zoom-out;">
+  <div onclick="event.stopPropagation()" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:min(520px,92vw);max-height:88vh;overflow-y:auto;cursor:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="font-family:'Press Start 2P',monospace;font-size:10px;color:var(--accent);letter-spacing:1px;" id="link-detail-slot">Slot</div>
+      <button onclick="hideLinkDetail()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:22px;line-height:1;padding:0 4px;">×</button>
+    </div>
+    <div id="link-detail-body"></div>
   </div>
-  <div class="link-grid" id="link-grid"></div>
+</div>
+
+<!-- ══════════════════════ Manueller-Link Modal ══════════════════════ -->
+<div id="manual-link-modal" onclick="if(event.target===this)hideManualLinkModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:6000;align-items:center;justify-content:center;cursor:zoom-out;">
+  <div onclick="event.stopPropagation()" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;width:min(760px,94vw);max-height:90vh;overflow-y:auto;cursor:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-family:'Press Start 2P',monospace;font-size:11px;color:var(--accent);letter-spacing:1px;">+ MANUELLER LINK</div>
+      <button onclick="hideManualLinkModal()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:22px;line-height:1;padding:0 4px;">×</button>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:14px;">Wähle pro Spieler ein Pokémon aus dem RAM (Team oder Box) und optional eine Route. Bei „Link erstellen" wird der Soullink eingetragen.</div>
+    <div id="manual-link-body"></div>
+  </div>
 </div>
 
 <!-- ══════════════════════ ENCOUNTER ══════════════════════ -->
@@ -1224,8 +1256,18 @@ const GYMS = [
 ];
 
 // ── RENDER FUNCTIONS ──
+// Helper: True wenn der User gerade in einem Form-Element tippt/auswählt.
+// Wird in allen Render-Funktionen benutzt, damit Bridge-Pushes nicht das
+// DOM ersetzen während ein Dropdown/Input offen ist.
+function isUserInteracting() {
+  const a = document.activeElement;
+  if (!a || a === document.body) return false;
+  const t = a.tagName;
+  return t === 'INPUT' || t === 'SELECT' || t === 'TEXTAREA';
+}
+
 function render() {
-  renderLinks();
+  // (alte renderLinks entfällt — Links-Tab wird jetzt von renderLive() befüllt)
   renderEncounters();
   renderRoutes();
   renderGyms();
@@ -1469,7 +1511,7 @@ function watchCatchTrio() {
         PLAYERS.every(p => link[p+'_id'] == enc[p+'_id'])
       );
       if (!exists) {
-        const newLink = { dead:{linus:false,jonah:false,jannik:false}, note:'', killer:null };
+        const newLink = { dead:{linus:false,jonah:false,jannik:false}, note:'', killer:null, route: enc.route };
         PLAYERS.forEach(p => {
           newLink[p+'_id']   = enc[p+'_id'];
           newLink[p+'_name'] = enc[p+'_name'];
@@ -1482,13 +1524,21 @@ function watchCatchTrio() {
         updates[`links/${newIdx}`] = newLink;
         console.log('[Trio AutoTracker] ➕ Link erstellt:', enc.route);
       }
+      // Route automatisch abhaken — Soullink steht
+      const routeIdx = (data.routes || []).findIndex(r => r.name === enc.route);
+      if (routeIdx !== -1 && !data.routes[routeIdx].done) {
+        data.routes[routeIdx].done = true;
+        updates[`routes/${routeIdx}/done`] = true;
+        console.log('[Trio AutoTracker] ✅ Route abgehakt (Link entstanden):', enc.route);
+      }
       dirty = true;
     }
   });
   if (dirty) {
     db.ref(currentRunId).update(updates).catch(()=>{});
-    renderLinks();
+    renderLive();
     renderEncounters();
+    renderRoutes();
   }
 }
 
@@ -1526,14 +1576,24 @@ function watchDeathsTrio() {
         link.killer = triggerPlayer;
         updates[`links/${i}/killer`] = triggerPlayer;
       }
+      // Route abhaken — der Link ist "gefallen" (Soullink fehlgeschlagen)
+      if (link.route) {
+        const routeIdx = (data.routes || []).findIndex(r => r.name === link.route);
+        if (routeIdx !== -1 && !data.routes[routeIdx].done) {
+          data.routes[routeIdx].done = true;
+          updates[`routes/${routeIdx}/done`] = true;
+          console.log('[Trio AutoTracker] ✅ Route abgehakt (Link gefallen):', link.route);
+        }
+      }
       dirty = true;
       console.log('[Trio AutoTracker] 💀 Cascade Death @ Link', i, '— ausgelöst durch', triggerPlayer);
     }
   });
   if (dirty) {
     db.ref(currentRunId).update(updates).catch(()=>{});
-    renderLinks();
+    renderLive();
     renderDeaths();
+    renderRoutes();
   }
 }
 
@@ -1577,65 +1637,438 @@ function liveMonCard(m, isMarkedDead) {
 }
 
 function renderLive() {
-  const grid  = document.getElementById('live-grid');
-  const empty = document.getElementById('live-empty');
-  if (!grid || !empty) return;
+  if (isUserInteracting()) return;   // Skip wenn Dropdown/Input offen
+  const statusEl = document.getElementById('links-status');
+  const teamEl   = document.getElementById('links-team-list');
+  const boxEl    = document.getElementById('links-box-list');
+  const empty    = document.getElementById('live-empty');
+  if (!statusEl || !teamEl || !boxEl || !empty) return;
 
-  // Hat irgendein Spieler überhaupt Daten?
+  const _savedRoutes = {};
+  LIVE_PLAYERS.forEach(p => {
+    const sel = document.getElementById('live-route-' + p.slot);
+    if (sel && sel.value) _savedRoutes[p.slot] = sel.value;
+  });
+
   const anyData = LIVE_PLAYERS.some(p => data['autoTeam_' + p.slot]);
   empty.style.display = anyData ? 'none' : 'block';
-  if (!anyData) { grid.innerHTML = ''; return; }
 
-  grid.innerHTML = LIVE_PLAYERS.map(p => {
+  // ── Status-Zeile: pro Spieler 1 kompakte Karte mit Map + Alter ──
+  statusEl.innerHTML = LIVE_PLAYERS.map(p => {
     const at = data['autoTeam_' + p.slot];
     if (!at) {
       return `
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;opacity:0.5;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-            <div style="font-family:'Press Start 2P',monospace;font-size:11px;color:${p.color};letter-spacing:1px;">${p.label}</div>
-            <div style="font-size:10px;color:var(--muted);">keine Bridge aktiv</div>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 12px;opacity:0.5;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-family:'Press Start 2P',monospace;font-size:10px;color:${p.color};letter-spacing:1px;">${p.label}</div>
+            <div style="font-size:10px;color:var(--muted);">offline</div>
           </div>
-          <div style="text-align:center;color:var(--muted);font-size:12px;padding:18px 0;">– offline –</div>
         </div>`;
     }
-    const team = Array.isArray(at.team) ? at.team : [];
-    const boxCount = Array.isArray(at.box) ? at.box.length : 0;
     const mapKey = autoMapKey(at);
     const mapRoute = mapKey ? getMapMappings()[mapKey] : null;
     const mapLabel = (at.mapHeader ?? at.mapId ?? '–');
     const mapDisplay = mapRoute && mapRoute !== '__ignore__'
-      ? `<strong style="color:var(--text);">${mapLabel}</strong> <span style="color:var(--accent3);">· ${mapRoute}</span>`
+      ? `${mapLabel} · <span style="color:var(--accent3);">${mapRoute}</span>`
       : mapRoute === '__ignore__'
-        ? `<strong style="color:var(--text);">${mapLabel}</strong> <span style="color:var(--muted);">· ignoriert</span>`
-        : `<strong style="color:var(--text);">${mapLabel}</strong>`;
+        ? `${mapLabel} <span style="color:var(--muted);">· ignoriert</span>`
+        : `${mapLabel}`;
     const showBanner = mapKey && !mapRoute;
     return `
-      <div style="background:var(--surface);border:1px solid ${p.color}55;border-radius:8px;padding:12px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;gap:6px;flex-wrap:wrap;">
-          <div style="font-family:'Press Start 2P',monospace;font-size:11px;color:${p.color};letter-spacing:1px;">${p.label}</div>
+      <div style="background:var(--surface);border:1px solid ${p.color}55;border-radius:6px;padding:8px 12px;display:flex;flex-direction:column;gap:5px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-family:'Press Start 2P',monospace;font-size:10px;color:${p.color};letter-spacing:1px;">${p.label}</div>
           <div style="font-size:10px;color:var(--muted);">${liveAgeLabel(at.updatedAt)}</div>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:10px;color:var(--muted);gap:6px;flex-wrap:wrap;">
-          <div style="min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;">Map: ${mapDisplay}</div>
-          <div>Box: ${boxCount}</div>
-          <div>Team: ${team.length}/6</div>
-        </div>
+        <div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Map: <strong style="color:var(--text);">${mapDisplay}</strong></div>
         ${showBanner ? `
-          <div style="background:rgba(255,213,79,0.08);border:1px solid rgba(255,213,79,0.4);border-radius:6px;padding:8px;margin-bottom:10px;font-size:11px;">
-            <div style="margin-bottom:6px;">🗺️ Map <strong>${mapKey}</strong> nicht zugeordnet.</div>
-            <div style="display:flex;gap:5px;flex-wrap:wrap;">
-              <select id="live-route-${p.slot}" style="flex:1;min-width:120px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:3px;font-family:'Exo 2',sans-serif;font-size:11px;">
+          <div style="background:rgba(255,213,79,0.08);border:1px solid rgba(255,213,79,0.4);border-radius:5px;padding:6px;font-size:10px;">
+            <div style="margin-bottom:5px;">🗺️ Map <strong>${mapKey}</strong> unbekannt</div>
+            <div style="display:flex;gap:4px;">
+              <select id="live-route-${p.slot}" style="flex:1;min-width:100px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:3px;font-family:'Exo 2',sans-serif;font-size:10px;">
                 <option value="">– Route wählen –</option>
-                <option value="__ignore__">(diese Map ignorieren)</option>
+                <option value="__ignore__">(ignorieren)</option>
                 ${(data.routes || []).map(r => `<option value="${r.name}">${r.name}</option>`).join('')}
               </select>
-              <button onclick="assignMapTrio('${p.slot}', '${mapKey}')" style="background:var(--accent);border:none;color:var(--bg);padding:4px 10px;border-radius:3px;font-size:10px;font-weight:700;cursor:pointer;">OK</button>
+              <button onclick="assignMapTrio('${p.slot}', '${mapKey}')" style="background:var(--accent);border:none;color:var(--bg);padding:3px 8px;border-radius:3px;font-size:10px;font-weight:700;cursor:pointer;">OK</button>
             </div>
           </div>` : ''}
-        ${team.length ? `<div style="display:flex;flex-direction:column;gap:5px;">${team.map(m => liveMonCard(m, false)).join('')}</div>`
-                      : `<div style="text-align:center;color:var(--muted);font-size:11px;padding:14px 0;">Kein Team in RAM</div>`}
       </div>`;
   }).join('');
+
+  // ── Soullinks → pro Link 1 Row mit 3 Karten (Linus/Jonah/Jannik nebeneinander) ──
+  const teamRows = [];
+  const boxRows  = [];
+  (data.links || []).forEach((link, linkIdx) => {
+    const slots = LIVE_PLAYERS.map(p => {
+      const pid = link[p.slot + '_pid'];
+      const at = data['autoTeam_' + p.slot];
+      let pokemon = null, location = null, slotIdx = -1;
+      if (pid && at) {
+        const tIdx = (at.team || []).findIndex(m => m.pid === pid);
+        if (tIdx !== -1) { pokemon = at.team[tIdx]; location = 'team'; slotIdx = tIdx; }
+        else {
+          const bIdx = (at.box || []).findIndex(m => m.pid === pid);
+          if (bIdx !== -1) { pokemon = at.box[bIdx]; location = 'box'; slotIdx = bIdx; }
+        }
+      }
+      return { p, link, pid, pokemon, location, slotIdx };
+    });
+    const anyInTeam   = slots.some(s => s.location === 'team');
+    const allInBox    = slots.every(s => s.location === 'box');
+    const isFullyDead = LIVE_PLAYERS.every(pp => link.dead && link.dead[pp.slot]);
+    const row = _renderSoullinkRow(link, linkIdx, slots, isFullyDead);
+    if (anyInTeam) teamRows.push(row);
+    else if (allInBox || isFullyDead) boxRows.push(row);
+    else teamRows.push(row); // gemischt / nicht alle gefunden → Team
+  });
+
+  teamEl.innerHTML = teamRows.length
+    ? teamRows.join('')
+    : '<div style="text-align:center;color:var(--muted);font-size:12px;padding:18px 0;">Keine aktiven Links</div>';
+  boxEl.innerHTML = boxRows.length
+    ? boxRows.join('')
+    : '<div style="text-align:center;color:var(--muted);font-size:12px;padding:18px 0;">Keine Links in Box</div>';
+
+  // Dropdown-Auswahl wiederherstellen
+  LIVE_PLAYERS.forEach(p => {
+    const saved = _savedRoutes[p.slot];
+    if (!saved) return;
+    const sel = document.getElementById('live-route-' + p.slot);
+    if (sel) {
+      const hasOpt = Array.from(sel.options).some(o => o.value === saved);
+      if (hasOpt) sel.value = saved;
+    }
+  });
+}
+
+function _renderSoullinkRow(link, linkIdx, slots, isFullyDead) {
+  const routeLabel = link.route || '';
+  // Eine Zeile pro Link: "Link N · Route — [P1] [P2] [P3]"
+  return `
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;${isFullyDead ? 'opacity:0.55;' : ''}">
+      <div style="font-family:'Press Start 2P',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;min-width:55px;flex-shrink:0;">#${linkIdx + 1}${isFullyDead ? ' 💀' : ''}</div>
+      ${routeLabel ? `<div style="font-size:11px;color:var(--accent3);min-width:90px;flex-shrink:0;">📍 ${routeLabel}</div>` : ''}
+      <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;flex-wrap:wrap;">
+        ${slots.map((s, i) => (i > 0 ? '<span style="color:var(--muted);">·</span>' : '') + _renderLinkSlotInline(s, link)).join('')}
+      </div>
+    </div>`;
+}
+
+function _renderLinkSlotInline(slot, link) {
+  const { p, pokemon, location, slotIdx } = slot;
+  const isDead = link.dead && link.dead[p.slot];
+  if (!pokemon) {
+    const species = link[p.slot + '_id'];
+    const name = link[p.slot + '_name'] || '?';
+    return `
+      <div style="display:inline-flex;align-items:center;gap:5px;font-size:12px;${isDead ? 'opacity:0.4;' : 'opacity:0.6;'}">
+        ${species ? `<img src="${spriteUrl(species)}" style="width:28px;height:28px;image-rendering:pixelated;filter:grayscale(1);">` : ''}
+        <span style="color:var(--muted);">${name}</span>
+        ${isDead ? '<span>💀</span>' : ''}
+      </div>`;
+  }
+  const cur = pokemon.curHP, max = pokemon.maxHP;
+  const hasHP = (typeof cur === 'number' && typeof max === 'number' && max > 0);
+  const fainted = hasHP && cur === 0;
+  const dead = fainted || isDead;
+  const species = pokemon.species;
+  const gname = (GERMAN_NAMES && GERMAN_NAMES[species]) || pokemon.nick || ('#' + species);
+  const nick = pokemon.nick || gname;
+  const ratio = hasHP ? Math.max(0, Math.min(1, cur / max)) : 1;
+  const hpColor = ratio > 0.5 ? '#a5d6a7' : ratio > 0.2 ? '#ffd54f' : '#ef5350';
+  return `
+    <div onclick="showLinkDetail('${p.slot}','${location}',${slotIdx})" title="${p.label} · ${nick} · Lv${pokemon.level ?? '?'}${hasHP ? ` · ${cur}/${max} KP` : ''}" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;padding:2px 6px;border-radius:4px;border:1px solid transparent;transition:border-color 0.15s,background 0.15s;${dead ? 'opacity:0.5;' : ''}" onmouseover="this.style.borderColor='${p.color}';this.style.background='var(--surface)';" onmouseout="this.style.borderColor='transparent';this.style.background='transparent';">
+      <img src="${spriteUrl(species)}" style="width:28px;height:28px;image-rendering:pixelated;${dead ? 'filter:grayscale(1);' : ''}">
+      <span style="color:${p.color};font-weight:700;${pokemon.nick ? '' : 'font-style:italic;'}">${nick}</span>
+      ${hasHP ? `<span style="font-family:'Press Start 2P',monospace;font-size:8px;color:${hpColor};">${cur}/${max}</span>` : ''}
+    </div>`;
+}
+
+// ══════════════════════════════════════════════════════════
+// Manueller Link: User kann selbst 3 Pokémon aus dem RAM
+// auswählen (falls Auto-Tracker daneben liegt).
+// ══════════════════════════════════════════════════════════
+const _manualLinkSel = { linus: null, jonah: null, jannik: null };
+
+function openManualLinkModal() {
+  Object.keys(_manualLinkSel).forEach(k => _manualLinkSel[k] = null);
+  _renderManualLinkBody();
+  document.getElementById('manual-link-modal').style.display = 'flex';
+}
+function hideManualLinkModal() {
+  document.getElementById('manual-link-modal').style.display = 'none';
+}
+
+function _renderManualLinkBody() {
+  const body = document.getElementById('manual-link-body');
+  if (!body) return;
+
+  // Route-Wert merken vor Rebuild (sonst geht das Dropdown beim Klick verloren)
+  const prevRouteSel = (document.getElementById('manual-link-route') || {}).value || '';
+
+  const sections = LIVE_PLAYERS.map(p => {
+    const at = data['autoTeam_' + p.slot];
+    const team = (at && Array.isArray(at.team)) ? at.team : [];
+    const box  = (at && Array.isArray(at.box))  ? at.box  : [];
+    const sel  = _manualLinkSel[p.slot];
+
+    const cards = [
+      ...team.map((m, i) => ({ m, source:'team', idx:i })),
+      ...box .map((m, i) => ({ m, source:'box',  idx:i })),
+    ].filter(c => c.m && c.m.pid);
+
+    const selLabel = sel
+      ? `Ausgewählt: <strong style="color:${p.color};">${sel.m.nick || (GERMAN_NAMES[sel.m.species] || '#' + sel.m.species)}</strong> (Lv${sel.m.level ?? '?'})`
+      : `<span style="color:var(--muted);">Klick ein Pokémon (${cards.length} verfügbar)</span>`;
+
+    const cardsHtml = cards.length ? cards.map(c => {
+      const isSel = sel && sel.source === c.source && sel.idx === c.idx;
+      const sp = c.m.species;
+      const gname = GERMAN_NAMES[sp] || ('#' + sp);
+      const nick = c.m.nick || gname;
+      const srcLabel = c.source === 'team' ? `T${c.idx + 1}` : `B${c.m.box ?? '?'}-${c.m.slot ?? c.idx + 1}`;
+      return `
+        <div onclick="selectManualLink('${p.slot}','${c.source}',${c.idx})"
+             title="${nick} · Lv${c.m.level ?? '?'} · ${srcLabel}"
+             style="cursor:pointer;background:${isSel ? 'var(--surface2)' : 'var(--surface)'};border:2px solid ${isSel ? p.color : 'var(--border)'};border-radius:5px;padding:5px;display:flex;flex-direction:column;align-items:center;gap:2px;transition:border-color 0.15s,background 0.15s;${isSel ? 'box-shadow:0 0 12px ' + p.color + '66;' : ''}"
+             onmouseover="if(!${isSel})this.style.borderColor='${p.color}88';"
+             onmouseout="if(!${isSel})this.style.borderColor='var(--border)';">
+          <img src="${spriteUrl(sp)}" style="width:34px;height:34px;image-rendering:pixelated;">
+          <div style="font-size:9px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;color:var(--text);">${nick}</div>
+          <div style="font-size:8px;color:var(--muted);">${srcLabel} · Lv${c.m.level ?? '?'}</div>
+        </div>`;
+    }).join('') : '<div style="color:var(--muted);font-size:11px;padding:12px;text-align:center;width:100%;">Keine Pokémon im RAM — Bridge offline?</div>';
+
+    return `
+      <div style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;flex-wrap:wrap;">
+          <div style="font-family:'Press Start 2P',monospace;font-size:10px;color:${p.color};letter-spacing:1px;">${p.label}</div>
+          <div style="font-size:11px;">${selLabel}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:5px;max-height:200px;overflow-y:auto;padding:6px;background:var(--surface2);border-radius:6px;border:1px solid var(--border);">
+          ${cardsHtml}
+        </div>
+      </div>`;
+  }).join('');
+
+  const allPicked = LIVE_PLAYERS.every(p => _manualLinkSel[p.slot]);
+  const footer = `
+    <div style="border-top:1px solid var(--border);padding-top:12px;margin-top:6px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <label style="font-size:11px;color:var(--muted);min-width:120px;">Route (optional, hakt ab):</label>
+        <select id="manual-link-route" style="flex:1;min-width:160px;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:4px;font-family:'Exo 2',sans-serif;font-size:12px;">
+          <option value="">– keine –</option>
+          ${(data.routes || []).map(r => `<option value="${r.name}"${prevRouteSel === r.name ? ' selected' : ''}>${r.name}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button onclick="hideManualLinkModal()" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:7px 14px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:12px;">Abbrechen</button>
+        <button onclick="confirmManualLink()" ${allPicked ? '' : 'disabled'} style="background:var(--accent);border:none;color:var(--bg);padding:7px 14px;border-radius:4px;cursor:${allPicked ? 'pointer' : 'not-allowed'};font-family:'Exo 2',sans-serif;font-size:12px;font-weight:700;${allPicked ? '' : 'opacity:0.45;'}">Link erstellen</button>
+      </div>
+    </div>`;
+
+  body.innerHTML = sections + footer;
+}
+
+function selectManualLink(player, source, idx) {
+  const at = data['autoTeam_' + player];
+  if (!at) return;
+  const m = source === 'team' ? (at.team || [])[idx] : (at.box || [])[idx];
+  if (!m || !m.pid) return;
+  _manualLinkSel[player] = { m, source, idx };
+  _renderManualLinkBody();
+}
+
+function confirmManualLink() {
+  if (!LIVE_PLAYERS.every(p => _manualLinkSel[p.slot])) return;
+
+  // Doppel-Check: existiert dieser Link (selbe PIDs) schon?
+  const existsByPid = (data.links || []).some(link =>
+    PLAYERS.every(p => link[p + '_pid'] && link[p + '_pid'] === _manualLinkSel[p].m.pid)
+  );
+  if (existsByPid) {
+    alert('Diese 3 Pokémon sind bereits verknüpft.');
+    return;
+  }
+
+  const routeSelect = document.getElementById('manual-link-route');
+  const route = (routeSelect && routeSelect.value) || null;
+
+  const newLink = { dead:{linus:false,jonah:false,jannik:false}, note:'', killer:null };
+  if (route) newLink.route = route;
+  PLAYERS.forEach(p => {
+    const m = _manualLinkSel[p].m;
+    const sp = m.species;
+    newLink[p + '_id']   = sp;
+    newLink[p + '_name'] = (GERMAN_NAMES[sp]) || m.nick || ('#' + sp);
+    newLink[p + '_nick'] = m.nick || '';
+    newLink[p + '_pid']  = m.pid;
+  });
+
+  if (!data.links) data.links = [];
+  const newIdx = data.links.length;
+  data.links.push(newLink);
+
+  const updates = {};
+  updates[`links/${newIdx}`] = newLink;
+
+  if (route) {
+    const routeIdx = (data.routes || []).findIndex(r => r.name === route);
+    if (routeIdx !== -1 && !data.routes[routeIdx].done) {
+      data.routes[routeIdx].done = true;
+      updates[`routes/${routeIdx}/done`] = true;
+    }
+  }
+
+  db.ref(currentRunId).update(updates).catch(()=>{});
+  console.log('[Manual Link] erstellt:', route || '(keine Route)', newLink);
+
+  hideManualLinkModal();
+  renderLive();
+  renderRoutes();
+}
+
+// ── Klick-Detail-Modal für Live-Karten ──
+function showLinkDetail(playerSlot, source, idx) {
+  const at = data['autoTeam_' + playerSlot];
+  if (!at) return;
+  const m = source === 'team' ? (at.team || [])[idx] : (at.box || [])[idx];
+  if (!m) return;
+  const playerLabel = (LIVE_PLAYERS.find(p => p.slot === playerSlot) || {}).label || playerSlot;
+  const slotLabel = source === 'team'
+    ? `${playerLabel} · Team Slot ${idx + 1}`
+    : `${playerLabel} · PC Box ${m.box ?? '?'}-${m.slot ?? idx + 1}`;
+  document.getElementById('link-detail-slot').textContent = slotLabel;
+  _renderLinkDetailBody(m, playerSlot);
+  document.getElementById('link-detail-modal').style.display = 'flex';
+}
+
+function hideLinkDetail() {
+  document.getElementById('link-detail-modal').style.display = 'none';
+}
+
+function _renderLinkDetailBody(m, playerSlot) {
+  const body = document.getElementById('link-detail-body');
+  if (!body) return;
+  const species = m.species;
+  const gname = (GERMAN_NAMES && GERMAN_NAMES[species]) || ('#' + species);
+  const cur = m.curHP, max = m.maxHP;
+  const hasHP = (typeof cur === 'number' && typeof max === 'number' && max > 0);
+  const ratio = hasHP ? Math.max(0, Math.min(1, cur / max)) : 1;
+  const dead = hasHP && cur === 0;
+  const hpColor = ratio > 0.5 ? 'var(--accent3)' : ratio > 0.2 ? 'var(--gold)' : 'var(--dead)';
+
+  body.innerHTML = `
+    <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:16px;">
+      <img src="${spriteUrl(species)}" style="width:96px;height:96px;image-rendering:pixelated;flex-shrink:0;${dead ? 'filter:grayscale(1);opacity:0.6;' : ''}">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:18px;${m.nick ? '' : 'font-style:italic;color:var(--muted);'}">${m.nick || gname}</div>
+        <div style="font-size:13px;color:var(--muted);">${gname} · #${String(species).padStart(3,'0')}</div>
+        <div style="font-family:'Press Start 2P',monospace;font-size:12px;color:var(--gold);margin-top:6px;">Lv ${m.level ?? '?'}</div>
+        ${hasHP ? `
+          <div style="margin-top:8px;">
+            <div style="font-size:12px;color:${hpColor};font-weight:600;">${cur}/${max} KP${dead ? ' 💀' : ''}</div>
+            <div style="width:100%;max-width:240px;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;margin-top:3px;">
+              <div style="width:${ratio*100}%;height:100%;background:${hpColor};"></div>
+            </div>
+          </div>` : ''}
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;font-size:12px;">
+      <div style="background:var(--surface2);padding:6px 10px;border-radius:4px;">
+        <div style="color:var(--muted);font-size:10px;letter-spacing:1px;">ITEM</div>
+        <div id="ld-item">${m.item ? 'Lade...' : '–'}</div>
+      </div>
+      <div style="background:var(--surface2);padding:6px 10px;border-radius:4px;">
+        <div style="color:var(--muted);font-size:10px;letter-spacing:1px;">FÄHIGKEIT</div>
+        <div id="ld-ability">${m.ability ? 'Lade...' : '–'}</div>
+      </div>
+    </div>
+    <div style="background:var(--surface2);padding:10px;border-radius:6px;margin-bottom:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;">
+        <div style="color:var(--muted);font-size:10px;letter-spacing:1px;">BASISWERTE</div>
+        <div style="font-family:'Press Start 2P',monospace;font-size:11px;color:var(--gold);">BST: <span id="ld-bst">…</span></div>
+      </div>
+      <div id="ld-stats" style="display:flex;flex-direction:column;gap:3px;font-size:11px;">
+        <div style="color:var(--muted);">Lade Stats...</div>
+      </div>
+    </div>
+    <div style="background:var(--surface2);padding:10px;border-radius:6px;">
+      <div style="color:var(--muted);font-size:10px;letter-spacing:1px;margin-bottom:6px;">⚔ ATTACKEN</div>
+      <div id="ld-moves" style="display:flex;flex-direction:column;gap:4px;font-size:12px;">${
+        (m.moves || []).filter(id => id > 0).length
+          ? (m.moves || []).filter(id => id > 0).map((id, i) =>
+              `<div id="ld-move-${i}" style="background:var(--surface);padding:5px 9px;border-radius:3px;">Lade...</div>`
+            ).join('')
+          : '<div style="color:var(--muted);">Keine Attacken</div>'
+      }</div>
+    </div>`;
+
+  // BST + Stats async laden
+  fetch(`https://pokeapi.co/api/v2/pokemon/${species}`)
+    .then(r => r.json())
+    .then(d => {
+      const STAT_LABELS = { hp:'KP', attack:'ANG', defense:'VTD', 'special-attack':'SP.ANG', 'special-defense':'SP.VTD', speed:'INI' };
+      const STAT_COLORS = { hp:'#a5d6a7', attack:'#ef5350', defense:'#ffd54f', 'special-attack':'#ab47bc', 'special-defense':'#26a69a', speed:'#42a5f5' };
+      let total = 0;
+      const rows = (d.stats || []).map(s => {
+        const val = s.base_stat;
+        total += val;
+        const label = STAT_LABELS[s.stat.name] || s.stat.name;
+        const color = STAT_COLORS[s.stat.name] || 'var(--accent)';
+        const pct = Math.min(100, val / 255 * 100);
+        return `
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="width:55px;font-family:'Press Start 2P',monospace;font-size:8px;color:var(--muted);">${label}</div>
+            <div style="flex:1;height:6px;background:rgba(0,0,0,0.35);border-radius:3px;overflow:hidden;">
+              <div style="width:${pct}%;height:100%;background:${color};"></div>
+            </div>
+            <div style="width:28px;text-align:right;font-family:'Press Start 2P',monospace;font-size:10px;color:var(--text);">${val}</div>
+          </div>`;
+      }).join('');
+      const statsEl = document.getElementById('ld-stats');
+      const bstEl = document.getElementById('ld-bst');
+      if (statsEl) statsEl.innerHTML = rows;
+      if (bstEl) bstEl.textContent = total;
+    }).catch(() => {
+      const statsEl = document.getElementById('ld-stats');
+      if (statsEl) statsEl.innerHTML = '<div style="color:var(--dead);">Stats konnten nicht geladen werden.</div>';
+    });
+
+  if (m.ability && m.ability > 0) {
+    fetch(`https://pokeapi.co/api/v2/ability/${m.ability}`)
+      .then(r => r.json())
+      .then(ab => {
+        const deName = (ab.names || []).find(n => n.language.name === 'de')?.name || ab.name;
+        const el = document.getElementById('ld-ability');
+        if (el) el.textContent = deName;
+      }).catch(() => {});
+  }
+  if (m.item && m.item > 0) {
+    fetch(`https://pokeapi.co/api/v2/item/${m.item}`)
+      .then(r => r.json())
+      .then(it => {
+        const deName = (it.names || []).find(n => n.language.name === 'de')?.name || it.name || ('#' + m.item);
+        const el = document.getElementById('ld-item');
+        if (el) el.textContent = deName;
+      }).catch(() => {
+        const el = document.getElementById('ld-item');
+        if (el) el.textContent = '#' + m.item;
+      });
+  }
+  (m.moves || []).filter(id => id > 0).forEach((id, i) => {
+    fetch(`https://pokeapi.co/api/v2/move/${id}`)
+      .then(r => r.json())
+      .then(mv => {
+        const deName = (mv.names || []).find(n => n.language.name === 'de')?.name || mv.name;
+        const el = document.getElementById('ld-move-' + i);
+        if (el) el.textContent = deName;
+      }).catch(() => {
+        const el = document.getElementById('ld-move-' + i);
+        if (el) el.textContent = '#' + id;
+      });
+  });
 }
 
 // Speichert Map → Route Zuordnung global (Run-übergreifend) und lokal sofort
@@ -1650,10 +2083,10 @@ function assignMapTrio(player, mapKey) {
   renderLive();
 }
 
-// Live-Tab pollt alle 2s neu für aktuelles "Xs alt"-Label,
+// Links-Tab pollt alle 2s neu für aktuelles "Xs alt"-Label,
 // auch wenn keine neuen Firebase-Daten kommen.
 setInterval(() => {
-  const tab = document.getElementById('tab-live');
+  const tab = document.getElementById('tab-links');
   if (tab && tab.classList.contains('active')) renderLive();
 }, 2000);
 
@@ -1733,18 +2166,18 @@ async function refreshPiEnemy() {
   if (movesBox) movesBox.style.display = 'block';
   _lastEnemyKey[player] = key;
 
-  // Aktive Fähigkeit überschreiben (statt aller potenziellen)
+  // Aktive Fähigkeit überschreiben (statt aller potenziellen) + PokeWiki-Reflink
   if (en.ability && en.ability > 0) {
     try {
       const r = await fetch(`https://pokeapi.co/api/v2/ability/${en.ability}`);
       const ab = await r.json();
       const deName = (ab.names || []).find(n => n.language.name === 'de')?.name || ab.name;
       const abEl = document.getElementById('pokeinfo-abilities');
-      if (abEl) abEl.innerHTML = `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:8px 12px;font-size:13px;color:var(--accent);font-weight:600;">${deName}</div>`;
+      if (abEl) abEl.innerHTML = `<a href="https://www.pokewiki.de/${encodeURIComponent(deName)}" target="_blank" rel="noopener" style="display:block;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:8px 12px;font-size:13px;color:var(--accent);font-weight:600;text-decoration:none;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">${deName} <span style="font-size:10px;color:var(--muted);">↗</span></a>`;
     } catch {}
   }
 
-  // Aktuelle 4 Moves
+  // Aktuelle 4 Moves — mit PokeWiki-Reflinks
   const moves = (en.moves || []).filter(id => id > 0);
   const list = document.getElementById('pi-actual-moves-list');
   if (!list) return;
@@ -1753,7 +2186,7 @@ async function refreshPiEnemy() {
     return;
   }
   list.innerHTML = moves.map((id, i) =>
-    `<div id="actual-move-${i}" style="background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:8px 12px;font-size:13px;">Lade...</div>`
+    `<a id="actual-move-${i}" href="#" target="_blank" rel="noopener" style="display:block;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:8px 12px;font-size:13px;color:var(--text);text-decoration:none;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">Lade...</a>`
   ).join('');
   moves.forEach(async (id, i) => {
     try {
@@ -1761,7 +2194,10 @@ async function refreshPiEnemy() {
       const mv = await r.json();
       const deName = (mv.names || []).find(n => n.language.name === 'de')?.name || mv.name;
       const el = document.getElementById('actual-move-' + i);
-      if (el) el.textContent = deName;
+      if (el) {
+        el.textContent = deName;
+        el.href = `https://www.pokewiki.de/${encodeURIComponent(deName)}`;
+      }
     } catch {
       const el = document.getElementById('actual-move-' + i);
       if (el) el.textContent = '#' + id;
@@ -2155,6 +2591,7 @@ function syncEncountersToRoutes() {
 }
 
 function renderEncounters() {
+  if (isUserInteracting()) return;   // Skip um offene Selects/Inputs nicht zu killen
   const body = document.getElementById('encounter-body');
   if (!body) return;
   syncEncountersToRoutes();
@@ -2363,6 +2800,7 @@ async function jumpToEncounter(pokeId, pokeName) {
 
 // ROUTES
 function renderRoutes() {
+  if (isUserInteracting()) return;
   const body = document.getElementById('route-body');
   if (!body) return;
   body.innerHTML = data.routes.map((r, i) => `
@@ -2392,6 +2830,7 @@ function resetRoutes() {
 
 // GYMS
 function renderGyms() {
+  if (isUserInteracting()) return;
   const grid = document.getElementById('gym-grid');
   if (!grid) return;
   const state = data.gymState || {};

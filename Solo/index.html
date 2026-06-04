@@ -829,43 +829,13 @@ function autoMapKey(at) {
 // ── Gen-5-Item-ID → DE-Name ──
 // Spielinterne Item-IDs aus BW2 (NICHT PokéAPI-Schema).
 // Lückenhaft — wird erweitert wenn neue auftauchen.
-const GEN5_ITEMS = {
-  // Pokébälle
-  1:'Meisterball', 2:'Hyperball', 3:'Superball', 4:'Pokéball', 5:'Safariball',
-  6:'Netzball', 7:'Tauchball', 8:'Nestball', 9:'Wiederball', 10:'Timerball',
-  11:'Luxusball', 12:'Premierball', 13:'Finsterball', 14:'Heilball', 15:'Flottball',
-  16:'Jubelball',
-  // Heilung
-  17:'Trank', 18:'Gegengift', 19:'Feuerheiler', 20:'Eisheiler', 21:'Aufwecker',
-  22:'Para-Heiler', 23:'Top-Genesung', 24:'Top-Trank', 25:'Hypertrank',
-  26:'Supertrank', 27:'Vollheiler', 28:'Beleber', 29:'Top-Beleber', 30:'Frischwasser',
-  31:'Sprudel', 32:'Limonade', 33:'Kuhmuh-Milch',
-  // EP & EV-Boosts
-  220:'Wahlband', 217:'Schnellklaue', 221:'Königsstein', 231:'Glücks-Ei',
-  234:'Überreste', 236:'Kugelblitz', 257:'Metallstaub',
-  270:'Leben-Orb', 271:'Energieband', 272:'Toxik-Orb', 273:'Heiß-Orb',
-  274:'Bremsdorn', 275:'Fokusgurt', 276:'Zoom-Linse', 277:'Aktivator',
-  281:'Schwarze Schlacke', 282:'Eisbrocken', 286:'Wahlband (Dup?)',
-  287:'Wahlschal', 297:'Wahlglas',
-  // EV-Trainer
-  237:'Machoband', 238:'EP-Teiler',
-  // Power-Items (EV)
-  258:'Gewichtsgurt', 259:'Bandagen', 260:'Linsenband', 261:'Laufschuhe-Item',
-  // Drachen-/Spezialdrops
-  235:'Drachenhaut', 239:'Drachenklaue', 240:'Wassserstein', 252:'Sonnenstein',
-  // Held-Items (Stat-Boosts)
-  208:'Hagelkraut', 209:'Glücksrucksack', 210:'Stahlmantel',
-  // Battle-Items
-  223:'Münzamulett', 224:'Reinigungsmaske', 225:'Mentalkraut', 230:'Drosselzapfen',
-  // Beeren (eine kleine Auswahl)
-  149:'Amrenabeere', 150:'Maranjabeere', 151:'Tsitrubeere', 152:'Pirsifbeere',
-  156:'Sinelbeere',
-  // PWT/Wechsel
-  547:'Wechselhülle',
-};
+// Item-Namen werden vollständig über PokéAPI geholt (fetchDeName('item', id)).
+// Sofortige Anzeige aus Cache, sonst Async-Fetch + DOM-Update.
+// PokéAPI-Item-IDs decken Gen 5 (1–639) vollständig ab.
 function gen5ItemName(id) {
   if (!id || id === 0) return '—';
-  return GEN5_ITEMS[id] || ('Item #' + id);
+  const cached = _apiCache['item:' + id];
+  return cached !== undefined ? cached : ('#' + id);
 }
 
 // ── AutoTracker Detail-Modal + DE-Namen via PokéAPI ──
@@ -1075,7 +1045,7 @@ async function renderAutoDetail(m) {
     </div>
     <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:13px;">
       <div style="color:var(--muted);">Fähigkeit</div>      <div id="ad-ability">Lade...</div>
-      <div style="color:var(--muted);">Item</div>           <div>${gen5ItemName(m.item)}</div>
+      <div style="color:var(--muted);">Item</div>           <div id="ad-item">${gen5ItemName(m.item)}</div>
     </div>
     <!-- BST -->
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px;margin-top:14px;">
@@ -1092,12 +1062,14 @@ async function renderAutoDetail(m) {
   `;
 
   // Async DE-Namen + Base Stats nachladen
-  const [ability, stats, ...moves] = await Promise.all([
+  const [ability, item, stats, ...moves] = await Promise.all([
     fetchDeName('ability', m.ability),
+    fetchDeName('item', m.item),
     fetchPokemonStats(m.species),
     ...(m.moves || []).map(mv => mv > 0 ? fetchDeName('move', mv) : Promise.resolve('–')),
   ]);
   const abEl = document.getElementById('ad-ability'); if (abEl) abEl.textContent = ability;
+  const itemEl = document.getElementById('ad-item'); if (itemEl) itemEl.textContent = item;
   const bstEl = document.getElementById('ad-bst');
   if (bstEl) bstEl.innerHTML = stats ? renderBSTBars(stats) : '<div style="color:var(--muted);">Konnte BST nicht laden.</div>';
   moves.forEach((name, i) => {

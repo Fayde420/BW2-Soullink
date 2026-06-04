@@ -5,7 +5,22 @@
 --  dann an Firebase.
 -- ═══════════════════════════════════════════════════════════
 
-memory.usememorydomain("Main RAM")
+-- Memory-Domain wird erst gesetzt sobald eine ROM geladen ist
+-- (sonst crasht NullHawk-Core mit "does not implement memory domains").
+-- Siehe ensureDomain() unten – die Hauptschleife wartet bis ROM da ist.
+local _domainReady = false
+local function ensureDomain()
+  if _domainReady then return true end
+  local sys = nil
+  pcall(function() sys = emu.getsystemid() end)
+  if not sys or sys == "NULL" or sys == "" then return false end
+  local ok = pcall(memory.usememorydomain, "Main RAM")
+  if ok then
+    _domainReady = true
+    print(string.format("[AutoTracker] ROM erkannt: %s — Main RAM verbunden.", sys))
+  end
+  return ok
+end
 
 local PARTY_BASE   = 0x21E32C
 local MON_SIZE     = 220
@@ -23,10 +38,29 @@ local ENEMY_BASE      = 0x0258774   -- Gegner-Team (Wild + Trainer)
 local ENEMY_SLOTS     = 6
 local BADGE_ADDR      = nil         -- TODO: via find_badges.lua finden
                                     -- Wenn gesetzt, wird als state.badges gesendet
+
+-- ── Rare Candy Cheat (jeden Frame Slot 1 der Items auf 65535× Sonderbonbon erzwingen) ──
+-- Ersatz für AR-Code:
+--   B2000024 00000000
+--   000194F8 FFFF0032
+-- Auf nil setzen um Cheat zu deaktivieren.
+local CHEAT_RARE_CANDY_QTY  = 65535       -- Menge (max 65535), nil = aus
+local CHEAT_RARE_CANDY_ID   = 50          -- Item-ID 50 = Sonderbonbon (Gen 5)
+local CHEAT_SAVE_PTR_ADDR   = 0x000024    -- Hier liegt der Save-Pointer in Main RAM
+local CHEAT_ITEM_SLOT_OFF   = 0x0194F8    -- Offset zum 1. Slot der Items-Tasche
 -- HP wird jetzt direkt aus dem verschlüsselten Party-Stats-Block
 -- gelesen (siehe decryptPartyStats unten). Keine externen Adressen
 -- mehr nötig.
-local OUTPUT_FILE  = "C:/trash/PokemonWebsite/autotracker/state.json"
+-- state.json wird neben dieses Lua-Skript geschrieben — so funktioniert
+-- es auf jedem Rechner ohne harten Pfad. Die Bridge sucht im selben Ordner.
+local function _scriptDir()
+  local src = debug.getinfo(1, 'S').source
+  if src:sub(1,1) == '@' then src = src:sub(2) end
+  local dir = src:match("(.+)[/\\][^/\\]+$")
+  return dir or "."
+end
+local OUTPUT_FILE = _scriptDir() .. "/state.json"
+print("[AutoTracker] state.json → " .. OUTPUT_FILE)
 
 local A_POS = {[0]=0,0,0,0,0,0, 1,1,2,3,2,3, 1,1,2,3,2,3, 1,1,2,3,2,3}
 local B_POS = {[0]=1,1,2,3,2,3, 0,0,0,0,0,0, 2,3,1,1,3,2, 2,3,1,1,3,2}
@@ -325,29 +359,47 @@ local function writeState()
   end
 end
 
+-- ── Cheat: Sonderbonbon-Menge auf festen Wert erzwingen ──
+local function applyRareCandyCheat()
+  if not CHEAT_RARE_CANDY_QTY then return end
+  local base = memory.read_u32_le(CHEAT_SAVE_PTR_ADDR)
+  if not base or base < 0x02000000 or base >= 0x02400000 then return end
+  local addr = (base - 0x02000000) + CHEAT_ITEM_SLOT_OFF
+  if addr < 0 or addr >= 0x400000 then return end
+  local packed = (CHEAT_RARE_CANDY_QTY * 0x10000) + CHEAT_RARE_CANDY_ID
+  memory.write_u32_le(addr, packed)
+end
+
 -- ── Hauptschleife ──
 local frame = 0
 while true do
-  frame = frame + 1
-  if frame % 60 == 1 then writeState() end
-
-  gui.text(8, 8,  "AutoTracker " .. (lastWriteOk and "AKTIV" or "(...)"))
-  gui.text(8, 24, string.format("Map-ID: %d (parent %d)",
-    memory.read_u16_le(MAP_HEADER_CHILD), memory.read_u16_le(MAP_HEADER_PARENT)))
-  gui.text(8, 40, string.format("Team:   %d", lastTeamCount))
-  gui.text(8, 56, string.format("Box:    %d", lastBoxCount))
-  if lastBattleType then
-    gui.text(8, 72, string.format("Kampf:  %s (%d)", lastBattleType, lastEnemyCount))
+  if not ensureDomain() then
+    -- Noch keine ROM geladen → warten, keine Memory-Reads versuchen
+    gui.text(8, 8, "AutoTracker: warte auf ROM-Load...")
+    emu.frameadvance()
   else
-    gui.text(8, 72, "Kampf:  -")
-  end
-  -- HP der ersten 3 Slots (direkt aus Party-Block entschlüsselt)
-  for slot = 0, 2 do
-    local m = decryptMon(slot)
-    if m and m.curHP then
-      gui.text(8, 92 + slot * 14, string.format(
-        "S%d: Lv%2d  %3d/%3d", slot + 1, m.level, m.curHP, m.maxHP))
+    frame = frame + 1
+    if frame % 60 == 1 then writeState() end
+    applyRareCandyCheat()
+
+    gui.text(8, 8,  "AutoTracker " .. (lastWriteOk and "AKTIV" or "(...)"))
+    gui.text(8, 24, string.format("Map-ID: %d (parent %d)",
+      memory.read_u16_le(MAP_HEADER_CHILD), memory.read_u16_le(MAP_HEADER_PARENT)))
+    gui.text(8, 40, string.format("Team:   %d", lastTeamCount))
+    gui.text(8, 56, string.format("Box:    %d", lastBoxCount))
+    if lastBattleType then
+      gui.text(8, 72, string.format("Kampf:  %s (%d)", lastBattleType, lastEnemyCount))
+    else
+      gui.text(8, 72, "Kampf:  -")
     end
+    -- HP der ersten 3 Slots (direkt aus Party-Block entschlüsselt)
+    for slot = 0, 2 do
+      local m = decryptMon(slot)
+      if m and m.curHP then
+        gui.text(8, 92 + slot * 14, string.format(
+          "S%d: Lv%2d  %3d/%3d", slot + 1, m.level, m.curHP, m.maxHP))
+      end
+    end
+    emu.frameadvance()
   end
-  emu.frameadvance()
 end
