@@ -1403,6 +1403,14 @@ function fillStarterTrio(player) {
 
 // ── Per-Spieler Auto-Encounter mit Cross-Player Dupes-Clause ──
 // Schreibt partiell, ohne save() (würde sonst autoTeam_* der Bridge clobbern)
+// Stale-Enemy-Tracking pro Spieler:
+//   BW2 leert den ENEMY_BASE-RAM nach einem Kampf NICHT. Lua liest also
+//   weiterhin die letzte Wild-Pokémon-Daten, auch wenn der Spieler längst
+//   wegläuft. Ohne Schutz würde der AutoTracker auf jeder folgenden Route
+//   denselben alten Gegner als "neuen Wild-Encounter" eintragen, was zu
+//   "Random-Links aus Pokémon die wir schon haben" führt.
+const _lastEnemySeen = {};  // player -> { pid, mapKey }
+
 function autoFillEncounterTrio(player) {
   const at = data['autoTeam_' + player];
   if (!at || !at.enemy || !at.enemy.species) return;
@@ -1413,6 +1421,17 @@ function autoFillEncounterTrio(player) {
   if (!route || route === '__ignore__') return;
   const pid = at.enemy.pid;
   if (!pid) return;
+
+  // STALE-ENEMY-SCHUTZ 1: Wenn diese PID bereits im Team oder PC-Box ist,
+  // ist's nur das RAM-Echo nach Catch — kein frischer Wild-Encounter.
+  const allMons = [...(at.team || []), ...(at.box || [])];
+  if (allMons.some(m => m.pid === pid)) return;
+
+  // STALE-ENEMY-SCHUTZ 2: Gleiche PID wie zuletzt gesehen, aber andere Map →
+  // Spieler ist nach Kampf weitergelaufen, ENEMY_BASE noch nicht überschrieben.
+  const last = _lastEnemySeen[player];
+  if (last && last.pid === pid && last.mapKey !== key) return;
+  _lastEnemySeen[player] = { pid, mapKey: key };
 
   // Tutorial-Skip (pro Spieler, pro Route)
   const skipCount = ROUTE_TUTORIAL_SKIP_TRIO[route] || 0;
