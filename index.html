@@ -1395,7 +1395,12 @@ function fillStarterTrio(player) {
   enc[player + '_id']   = speciesId;
   enc[player + '_name'] = name;
   enc[player + '_pid']  = starter.pid;
+  // WICHTIG: route + status mitschreiben damit syncEncountersToRoutes den
+  // Eintrag per Name wiederfindet (sonst wird er bei jedem Listener-Tick
+  // als leerer Slot neu erstellt → fillStarter feuert endlos)
   const upd = {};
+  upd[`encounters/${encIdx}/route`]          = enc.route;
+  upd[`encounters/${encIdx}/status`]         = enc.status || 'uncaught';
   upd[`encounters/${encIdx}/${player}_id`]   = speciesId;
   upd[`encounters/${encIdx}/${player}_name`] = name;
   upd[`encounters/${encIdx}/${player}_pid`]  = starter.pid;
@@ -1487,6 +1492,8 @@ function autoFillEncounterTrio(player) {
   enc[player + '_name'] = name;
   enc[player + '_pid']  = pid;
   const upd = {};
+  upd[`encounters/${encIdx}/route`]          = enc.route;
+  upd[`encounters/${encIdx}/status`]         = enc.status || 'uncaught';
   upd[`encounters/${encIdx}/${player}_id`]   = speciesId;
   upd[`encounters/${encIdx}/${player}_name`] = name;
   upd[`encounters/${encIdx}/${player}_pid`]  = pid;
@@ -1514,7 +1521,8 @@ function watchCatchTrio() {
       const inBox  = (at.box  || []).some(m => m.pid === pid);
       if (inTeam || inBox) {
         enc[p + '_caught'] = true;
-        updates[`encounters/${encIdx}/${p}_caught`] = true;
+        updates[`encounters/${encIdx}/route`]        = enc.route;
+        updates[`encounters/${encIdx}/${p}_caught`]  = true;
         dirty = true;
         console.log('[Trio AutoTracker] 🎯 Gefangen:', p, enc.route, '→', enc[p+'_name']);
       } else {
@@ -1524,6 +1532,7 @@ function watchCatchTrio() {
     // Soullink komplett, wenn alle 3 caught
     if (allCaughtNow && enc.status !== 'caught') {
       enc.status = 'caught';
+      updates[`encounters/${encIdx}/route`]  = enc.route;
       updates[`encounters/${encIdx}/status`] = 'caught';
       console.log('[Trio AutoTracker] 🔗 Soullink komplett auf', enc.route);
       const exists = (data.links || []).some(link =>
@@ -2712,7 +2721,9 @@ function filterEncPoke(encIdx, player, query) {
 function selectEncPoke(encIdx, player, id, name) {
   data.encounters[encIdx][player+'_id'] = id;
   data.encounters[encIdx][player+'_name'] = name;
+  const enc = data.encounters[encIdx];
   const upd = {};
+  upd[`encounters/${encIdx}/route`]          = enc.route;
   upd[`encounters/${encIdx}/${player}_id`]   = id;
   upd[`encounters/${encIdx}/${player}_name`] = name;
   db.ref(currentRunId).update(upd).catch(()=>{});
@@ -2861,11 +2872,12 @@ function renderEncounters() {
 function matchEncPoke(encIdx, player, query) {
   loadPokeList();
   const q = (query || '').trim().toLowerCase();
-  // Partielles Update — autoTeam_* nicht clobbern
-  const upd = {};
+  const enc = data.encounters[encIdx];
+  // Partielles Update — autoTeam_* nicht clobbern, route immer mitschreiben
+  const upd = { [`encounters/${encIdx}/route`]: enc.route };
   if (!q) {
-    data.encounters[encIdx][player+'_id'] = '';
-    data.encounters[encIdx][player+'_name'] = '';
+    enc[player+'_id'] = '';
+    enc[player+'_name'] = '';
     upd[`encounters/${encIdx}/${player}_id`]   = '';
     upd[`encounters/${encIdx}/${player}_name`] = '';
     updateEncSprite(encIdx, player, null);
@@ -2876,14 +2888,14 @@ function matchEncPoke(encIdx, player, query) {
            || POKEMON_LIST.find(p => p.name.toLowerCase().startsWith(q))
            || POKEMON_LIST.find(p => p.name.toLowerCase().includes(q));
   if (match) {
-    data.encounters[encIdx][player+'_id'] = match.id;
-    data.encounters[encIdx][player+'_name'] = match.name;
+    enc[player+'_id'] = match.id;
+    enc[player+'_name'] = match.name;
     upd[`encounters/${encIdx}/${player}_id`]   = match.id;
     upd[`encounters/${encIdx}/${player}_name`] = match.name;
     updateEncSprite(encIdx, player, match.id);
   } else {
-    data.encounters[encIdx][player+'_id'] = '';
-    data.encounters[encIdx][player+'_name'] = query;
+    enc[player+'_id'] = '';
+    enc[player+'_name'] = query;
     upd[`encounters/${encIdx}/${player}_id`]   = '';
     upd[`encounters/${encIdx}/${player}_name`] = query;
     updateEncSprite(encIdx, player, null);
@@ -2910,11 +2922,12 @@ function updateEncSprite(encIdx, player, id) {
 function updateEnc(i, field, val) {
   data.encounters[i][field] = val;
   const upd = {};
-  upd[`encounters/${i}/${field}`] = val;
+  // route immer mitschreiben damit syncEncountersToRoutes den Eintrag findet
+  upd[`encounters/${i}/route`]     = data.encounters[i].route;
+  upd[`encounters/${i}/${field}`]  = val;
   // Wenn Status auf "gefangen" gesetzt: automatisch Link erstellen
   if (field === 'status' && val === 'caught') {
     autoCreateLink(i);
-    // autoCreateLink ändert data.links — diese auch mit pushen
     upd['links'] = data.links;
   }
   db.ref(currentRunId).update(upd).catch(()=>{});
