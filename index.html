@@ -1283,6 +1283,7 @@ function render() {
     });
     watchCatchTrio();
     watchDeathsTrio();
+    autoTickBadgesTrio();
   }
   // Gegner-Anzeige im Pokémon-Tab (falls Sub-Tab aktiv)
   if (typeof refreshPiEnemy === 'function') refreshPiEnemy();
@@ -1571,6 +1572,36 @@ function watchCatchTrio() {
 }
 
 // ── Death-Cascade: HP=0 bei einem gelinkten Pokemon → alle 3 als tot markieren ──
+// ── Gym-Orden Auto-Tick: liest state.badges (u8-Bitfeld) ──
+// Lua sendet badges nur wenn BADGE_ADDR in live_team.lua gesetzt ist.
+// Bit N gesetzt = Orden N+1 verdient. Im Trio gilt ein Orden als verdient,
+// sobald IRGENDEIN Spieler ihn hat (alle spielen synchron).
+// WICHTIG: gymState wird mit Array-Index (0-7) indexiert, gleiche
+// Konvention wie renderGyms/toggleGym, sonst tickt der UI-Checkbox nicht.
+function autoTickBadgesTrio() {
+  let combined = 0;
+  for (const p of PLAYERS) {
+    const at = data['autoTeam_' + p];
+    if (at && typeof at.badges === 'number') combined |= at.badges;
+  }
+  if (!combined) return;
+  if (!data.gymState) data.gymState = {};
+  const updates = {};
+  let dirty = false;
+  for (let i = 0; i < 8; i++) {
+    if ((combined & (1 << i)) && !data.gymState[i]) {
+      data.gymState[i] = true;
+      updates[`gymState/${i}`] = true;
+      dirty = true;
+      console.log('[Trio AutoTracker] 🏅 Orden', i + 1, 'auto-getickt');
+    }
+  }
+  if (dirty) {
+    db.ref(currentRunId).update(updates).catch(()=>{});
+    renderGyms();
+  }
+}
+
 function watchDeathsTrio() {
   if (!data.links || !data.links.length) return;
   const updates = {};
