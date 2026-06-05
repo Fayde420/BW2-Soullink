@@ -1424,13 +1424,11 @@ function autoFillEncounterTrio(player) {
   const pid = at.enemy.pid;
   if (!pid) return;
 
-  // STALE-ENEMY-SCHUTZ 1: Wenn diese PID bereits im Team oder PC-Box ist,
-  // ist's nur das RAM-Echo nach Catch — kein frischer Wild-Encounter.
-  const allMons = [...(at.team || []), ...(at.box || [])];
-  if (allMons.some(m => m.pid === pid)) return;
-
-  // STALE-ENEMY-SCHUTZ 2: Gleiche PID wie zuletzt gesehen, aber andere Map →
+  // STALE-ENEMY-SCHUTZ: Gleiche PID wie zuletzt gesehen, aber andere Map →
   // Spieler ist nach Kampf weitergelaufen, ENEMY_BASE noch nicht überschrieben.
+  // (Frühere "PID in Team/Box" Check war zu aggressiv: blockte auch legitime
+  //  Fälle wo der Wild gerade gefangen wurde und die Map erst danach zugeordnet
+  //  wurde — Encounter blieb dann leer trotz erfolgreichem Catch.)
   const last = _lastEnemySeen[player];
   if (last && last.pid === pid && last.mapKey !== key) return;
   _lastEnemySeen[player] = { pid, mapKey: key };
