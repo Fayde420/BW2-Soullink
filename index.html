@@ -1772,13 +1772,15 @@ function renderLive() {
 
 function _renderSoullinkRow(link, linkIdx, slots, isFullyDead) {
   const routeLabel = link.route || '';
-  // Eine Zeile pro Link: "Link N · Route — [P1] [P2] [P3]"
+  // Header-Zeile + Pokémon untereinander gestapelt
   return `
-    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;${isFullyDead ? 'opacity:0.55;' : ''}">
-      <div style="font-family:'Press Start 2P',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;min-width:55px;flex-shrink:0;">#${linkIdx + 1}${isFullyDead ? ' 💀' : ''}</div>
-      ${routeLabel ? `<div style="font-size:11px;color:var(--accent3);min-width:90px;flex-shrink:0;">📍 ${routeLabel}</div>` : ''}
-      <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;flex-wrap:wrap;">
-        ${slots.map((s, i) => (i > 0 ? '<span style="color:var(--muted);">·</span>' : '') + _renderLinkSlotInline(s, link)).join('')}
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;${isFullyDead ? 'opacity:0.55;' : ''}">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
+        <div style="font-family:'Press Start 2P',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;flex-shrink:0;">#${linkIdx + 1}${isFullyDead ? ' 💀' : ''}</div>
+        ${routeLabel ? `<div style="font-size:11px;color:var(--accent3);flex-shrink:0;">📍 ${routeLabel}</div>` : ''}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;">
+        ${slots.map(s => _renderLinkSlotInline(s, link)).join('')}
       </div>
     </div>`;
 }
