@@ -2430,10 +2430,16 @@ function showPiMode(mode) {
 
 // Pro Spieler: welcher Slot aus enemyTeam gerade gewählt ist (für Trainer mit mehreren Pokémon)
 const _piEnemyIdx = { linus: 0, jonah: 0, jannik: 0 };
+// Welche Slots aufgedeckt sind (kein Spoiler bei Trainern). Slot 0 immer
+// auto-aufgedeckt (= aktiver Battler). Reset wenn neuer Gegner-Trupp.
+const _piEnemyRevealed = { linus: new Set([0]), jonah: new Set([0]), jannik: new Set([0]) };
+const _piEnemyTeamKey  = { linus: '', jonah: '', jannik: '' };
 
 function setPiEnemyIdx(player, idx) {
+  if (!_piEnemyRevealed[player]) _piEnemyRevealed[player] = new Set([0]);
+  _piEnemyRevealed[player].add(idx);   // Klick deckt diesen Slot auf
   _piEnemyIdx[player] = idx;
-  _lastEnemyKey[player] = null;   // forciere Reload
+  _lastEnemyKey[player] = null;        // forciere Reload
   refreshPiEnemy();
 }
 
@@ -2449,6 +2455,15 @@ async function refreshPiEnemy() {
   const enemyTeam = (at && Array.isArray(at.enemyTeam) && at.enemyTeam.length) ? at.enemyTeam : (at && at.enemy ? [at.enemy] : []);
   // Index begrenzen falls Team kleiner wurde
   if (_piEnemyIdx[player] >= enemyTeam.length) _piEnemyIdx[player] = 0;
+
+  // Auto-Reset aufgedeckte Slots wenn neuer Gegner-Trupp (anderer PID-Set)
+  const teamKey = enemyTeam.map(m => m && m.pid).join(',');
+  if (_piEnemyTeamKey[player] !== teamKey) {
+    _piEnemyRevealed[player] = new Set([0]);  // Slot 0 (aktiver Battler) immer sichtbar
+    _piEnemyTeamKey[player] = teamKey;
+    _piEnemyIdx[player] = 0;
+  }
+
   const en = enemyTeam[_piEnemyIdx[player]];
 
   const emptyEl  = document.getElementById('pi-enemy-empty');
@@ -2465,9 +2480,14 @@ async function refreshPiEnemy() {
       const playerColor = ((LIVE_PLAYERS.find(p => p.slot === player)) || {}).color || 'var(--accent)';
       slotsEl.innerHTML = enemyTeam.map((m, i) => {
         const active = i === _piEnemyIdx[player];
-        const gname = (GERMAN_NAMES && GERMAN_NAMES[m.species]) || ('#' + m.species);
-        return `<button onclick="setPiEnemyIdx('${player}',${i})" title="${gname} (Lv${m.level ?? '?'})" style="background:${active ? playerColor : 'var(--surface)'};border:1px solid ${active ? playerColor : 'var(--border)'};color:${active ? 'var(--bg)' : 'var(--text)'};padding:4px 8px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:11px;font-weight:${active ? 700 : 500};display:flex;align-items:center;gap:4px;">
-          <img src="${spriteUrl(m.species)}" style="width:20px;height:20px;image-rendering:pixelated;">${i + 1}
+        const revealed = _piEnemyRevealed[player].has(i);
+        const gname = revealed ? ((GERMAN_NAMES && GERMAN_NAMES[m.species]) || ('#' + m.species)) : '???';
+        const title = revealed ? `${gname} (Lv${m.level ?? '?'})` : 'Unbekanntes Pokémon — klick zum Aufdecken';
+        const icon = revealed
+          ? `<img src="${spriteUrl(m.species)}" style="width:20px;height:20px;image-rendering:pixelated;">`
+          : `<span style="display:inline-flex;width:20px;height:20px;align-items:center;justify-content:center;background:var(--surface2);border:1px solid var(--border);border-radius:3px;font-weight:700;font-size:13px;color:var(--muted);">?</span>`;
+        return `<button onclick="setPiEnemyIdx('${player}',${i})" title="${title}" style="background:${active ? playerColor : 'var(--surface)'};border:1px solid ${active ? playerColor : 'var(--border)'};color:${active ? 'var(--bg)' : 'var(--text)'};padding:4px 8px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:11px;font-weight:${active ? 700 : 500};display:flex;align-items:center;gap:4px;">
+          ${icon}${i + 1}
         </button>`;
       }).join('');
     } else {
