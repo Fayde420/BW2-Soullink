@@ -920,6 +920,8 @@ window.addEventListener('load', () => {
         oninput="filterPokeInfo(this.value)" onfocus="openPokeInfoDrop()" style="font-size:15px;padding:10px 14px;">
       <div class="poke-list" id="pokeinfo-list"></div>
     </div>
+    <!-- Gegner-Slot-Picker (sichtbar wenn Trainer mit mehreren Pokémon) -->
+    <div id="pi-enemy-slots" style="display:none;justify-content:center;gap:6px;margin-bottom:12px;flex-wrap:wrap;"></div>
     <!-- Gegner-Placeholder (sichtbar im Gegner-Modus wenn kein Gegner) -->
     <div id="pi-enemy-empty" style="display:none;text-align:center;margin-bottom:14px;padding:24px;background:var(--surface);border:1px solid var(--border);border-radius:8px;">
       <div style="color:var(--muted);font-size:13px;">⚔ Kein Gegner im Kampf</div>
@@ -1967,6 +1969,10 @@ function hideLinkDetail() {
   document.getElementById('link-detail-modal').style.display = 'none';
 }
 
+function _pokeWikiLink(label, text, extra) {
+  return `<a href="https://www.pokewiki.de/${encodeURIComponent(label)}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;border-bottom:1px dashed var(--accent);">${text || label}</a>${extra || ''}`;
+}
+
 function _renderLinkDetailBody(m, playerSlot) {
   const body = document.getElementById('link-detail-body');
   if (!body) return;
@@ -1978,12 +1984,15 @@ function _renderLinkDetailBody(m, playerSlot) {
   const dead = hasHP && cur === 0;
   const hpColor = ratio > 0.5 ? 'var(--accent3)' : ratio > 0.2 ? 'var(--gold)' : 'var(--dead)';
 
+  // Item sofort aus Gen5-Tabelle (oder #id wenn unbekannt)
+  const itemSyncName = gen5ItemNameSync(m.item);
+
   body.innerHTML = `
     <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:16px;">
       <img src="${spriteUrl(species)}" style="width:96px;height:96px;image-rendering:pixelated;flex-shrink:0;${dead ? 'filter:grayscale(1);opacity:0.6;' : ''}">
       <div style="flex:1;min-width:0;">
-        <div style="font-weight:700;font-size:18px;${m.nick ? '' : 'font-style:italic;color:var(--muted);'}">${m.nick || gname}</div>
-        <div style="font-size:13px;color:var(--muted);">${gname} · #${String(species).padStart(3,'0')}</div>
+        <div style="font-weight:700;font-size:18px;${m.nick ? '' : 'font-style:italic;color:var(--muted);'}">${m.nick || _pokeWikiLink(gname, m.nick || gname)}</div>
+        <div style="font-size:13px;color:var(--muted);">${_pokeWikiLink(gname)} · #${String(species).padStart(3,'0')}</div>
         <div style="font-family:'Press Start 2P',monospace;font-size:12px;color:var(--gold);margin-top:6px;">Lv ${m.level ?? '?'}</div>
         ${hasHP ? `
           <div style="margin-top:8px;">
@@ -1992,12 +2001,13 @@ function _renderLinkDetailBody(m, playerSlot) {
               <div style="width:${ratio*100}%;height:100%;background:${hpColor};"></div>
             </div>
           </div>` : ''}
+        <div id="ld-types" style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap;"></div>
       </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;font-size:12px;">
       <div style="background:var(--surface2);padding:6px 10px;border-radius:4px;">
         <div style="color:var(--muted);font-size:10px;letter-spacing:1px;">ITEM</div>
-        <div id="ld-item">${m.item ? 'Lade...' : '–'}</div>
+        <div id="ld-item">${m.item ? itemSyncName : '–'}</div>
       </div>
       <div style="background:var(--surface2);padding:6px 10px;border-radius:4px;">
         <div style="color:var(--muted);font-size:10px;letter-spacing:1px;">FÄHIGKEIT</div>
@@ -2013,76 +2023,115 @@ function _renderLinkDetailBody(m, playerSlot) {
         <div style="color:var(--muted);">Lade Stats...</div>
       </div>
     </div>
+    <div style="background:var(--surface2);padding:10px;border-radius:6px;margin-bottom:10px;">
+      <div style="color:var(--muted);font-size:10px;letter-spacing:1px;margin-bottom:6px;">SCHWÄCHEN / RESISTENZEN</div>
+      <div id="ld-eff" style="display:flex;flex-direction:column;gap:4px;font-size:11px;">
+        <div style="color:var(--muted);">Lade...</div>
+      </div>
+    </div>
     <div style="background:var(--surface2);padding:10px;border-radius:6px;">
       <div style="color:var(--muted);font-size:10px;letter-spacing:1px;margin-bottom:6px;">⚔ ATTACKEN</div>
       <div id="ld-moves" style="display:flex;flex-direction:column;gap:4px;font-size:12px;">${
         (m.moves || []).filter(id => id > 0).length
           ? (m.moves || []).filter(id => id > 0).map((id, i) =>
-              `<div id="ld-move-${i}" style="background:var(--surface);padding:5px 9px;border-radius:3px;">Lade...</div>`
+              `<a id="ld-move-${i}" href="#" target="_blank" rel="noopener" style="display:block;background:var(--surface);padding:5px 9px;border-radius:3px;color:var(--text);text-decoration:none;border:1px solid transparent;transition:border-color 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='transparent'">Lade...</a>`
             ).join('')
           : '<div style="color:var(--muted);">Keine Attacken</div>'
       }</div>
     </div>`;
 
-  // BST + Stats async laden
+  // BST + Stats + Types async laden
   fetch(`https://pokeapi.co/api/v2/pokemon/${species}`)
     .then(r => r.json())
-    .then(d => {
+    .then(async d => {
       const STAT_LABELS = { hp:'KP', attack:'ANG', defense:'VTD', 'special-attack':'SP.ANG', 'special-defense':'SP.VTD', speed:'INI' };
       const STAT_COLORS = { hp:'#a5d6a7', attack:'#ef5350', defense:'#ffd54f', 'special-attack':'#ab47bc', 'special-defense':'#26a69a', speed:'#42a5f5' };
       let total = 0;
       const rows = (d.stats || []).map(s => {
-        const val = s.base_stat;
-        total += val;
+        const val = s.base_stat; total += val;
         const label = STAT_LABELS[s.stat.name] || s.stat.name;
         const color = STAT_COLORS[s.stat.name] || 'var(--accent)';
         const pct = Math.min(100, val / 255 * 100);
-        return `
-          <div style="display:flex;align-items:center;gap:8px;">
-            <div style="width:55px;font-family:'Press Start 2P',monospace;font-size:8px;color:var(--muted);">${label}</div>
-            <div style="flex:1;height:6px;background:rgba(0,0,0,0.35);border-radius:3px;overflow:hidden;">
-              <div style="width:${pct}%;height:100%;background:${color};"></div>
-            </div>
-            <div style="width:28px;text-align:right;font-family:'Press Start 2P',monospace;font-size:10px;color:var(--text);">${val}</div>
-          </div>`;
+        return `<div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:55px;font-family:'Press Start 2P',monospace;font-size:8px;color:var(--muted);">${label}</div>
+          <div style="flex:1;height:6px;background:rgba(0,0,0,0.35);border-radius:3px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:${color};"></div>
+          </div>
+          <div style="width:28px;text-align:right;font-family:'Press Start 2P',monospace;font-size:10px;color:var(--text);">${val}</div>
+        </div>`;
       }).join('');
-      const statsEl = document.getElementById('ld-stats');
-      const bstEl = document.getElementById('ld-bst');
-      if (statsEl) statsEl.innerHTML = rows;
-      if (bstEl) bstEl.textContent = total;
+      const statsEl = document.getElementById('ld-stats'); if (statsEl) statsEl.innerHTML = rows;
+      const bstEl = document.getElementById('ld-bst'); if (bstEl) bstEl.textContent = total;
+
+      // Types-Badges (Gen 5: keine Fairy)
+      const types = (d.types || []).map(t => t.type.name).filter(t => GEN5_TYPES.includes(t));
+      const tEl = document.getElementById('ld-types');
+      if (tEl) tEl.innerHTML = types.map(t => {
+        const color = TYPE_COLORS[t] || '#666';
+        return `<span style="background:${color};color:#fff;padding:2px 10px;border-radius:3px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;">${t}</span>`;
+      }).join('');
+
+      // Effektivität (Gen 5)
+      if (types.length) {
+        const eff = await calcEffectivenessGen5(types);
+        const buckets = { '4x':[], '2x':[], '0.5x':[], '0.25x':[], '0x':[] };
+        Object.entries(eff).forEach(([typ, mult]) => {
+          if (mult === 4) buckets['4x'].push(typ);
+          else if (mult === 2) buckets['2x'].push(typ);
+          else if (mult === 0.5) buckets['0.5x'].push(typ);
+          else if (mult === 0.25) buckets['0.25x'].push(typ);
+          else if (mult === 0) buckets['0x'].push(typ);
+        });
+        const renderBucket = (label, types, color) => {
+          if (!types.length) return '';
+          const badges = types.map(t => `<span style="background:${TYPE_COLORS[t] || '#666'};color:#fff;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;text-transform:uppercase;margin-right:3px;">${t}</span>`).join('');
+          return `<div style="display:flex;align-items:center;gap:8px;"><span style="min-width:48px;color:${color};font-family:'Press Start 2P',monospace;font-size:9px;">${label}</span><div>${badges}</div></div>`;
+        };
+        const html = [
+          renderBucket('4×', buckets['4x'], '#ef5350'),
+          renderBucket('2×', buckets['2x'], '#ff7043'),
+          renderBucket('½×', buckets['0.5x'], '#66bb6a'),
+          renderBucket('¼×', buckets['0.25x'], '#26a69a'),
+          renderBucket('0×', buckets['0x'], '#7986cb'),
+        ].filter(s => s).join('');
+        const effEl = document.getElementById('ld-eff');
+        if (effEl) effEl.innerHTML = html || '<div style="color:var(--muted);">Keine besonderen Schwächen/Resistenzen.</div>';
+      }
     }).catch(() => {
       const statsEl = document.getElementById('ld-stats');
       if (statsEl) statsEl.innerHTML = '<div style="color:var(--dead);">Stats konnten nicht geladen werden.</div>';
     });
 
+  // Ability mit PokeWiki-Link
   if (m.ability && m.ability > 0) {
     fetch(`https://pokeapi.co/api/v2/ability/${m.ability}`)
       .then(r => r.json())
       .then(ab => {
         const deName = (ab.names || []).find(n => n.language.name === 'de')?.name || ab.name;
         const el = document.getElementById('ld-ability');
-        if (el) el.textContent = deName;
+        if (el) el.innerHTML = _pokeWikiLink(deName);
       }).catch(() => {});
   }
+
+  // Item mit Gen5-Tabelle + PokeWiki-Link
   if (m.item && m.item > 0) {
-    fetch(`https://pokeapi.co/api/v2/item/${m.item}`)
-      .then(r => r.json())
-      .then(it => {
-        const deName = (it.names || []).find(n => n.language.name === 'de')?.name || it.name || ('#' + m.item);
-        const el = document.getElementById('ld-item');
-        if (el) el.textContent = deName;
-      }).catch(() => {
-        const el = document.getElementById('ld-item');
-        if (el) el.textContent = '#' + m.item;
-      });
+    fetchItemName(m.item).then(name => {
+      const el = document.getElementById('ld-item');
+      if (el) el.innerHTML = _pokeWikiLink(name);
+    });
   }
+
+  // Moves mit PokeWiki-Link
   (m.moves || []).filter(id => id > 0).forEach((id, i) => {
     fetch(`https://pokeapi.co/api/v2/move/${id}`)
       .then(r => r.json())
       .then(mv => {
         const deName = (mv.names || []).find(n => n.language.name === 'de')?.name || mv.name;
         const el = document.getElementById('ld-move-' + i);
-        if (el) el.textContent = deName;
+        if (el) {
+          el.textContent = deName;
+          el.href = `https://www.pokewiki.de/${encodeURIComponent(deName)}`;
+        }
       }).catch(() => {
         const el = document.getElementById('ld-move-' + i);
         if (el) el.textContent = '#' + id;
@@ -2143,6 +2192,15 @@ function showPiMode(mode) {
   }
 }
 
+// Pro Spieler: welcher Slot aus enemyTeam gerade gewählt ist (für Trainer mit mehreren Pokémon)
+const _piEnemyIdx = { linus: 0, jonah: 0, jannik: 0 };
+
+function setPiEnemyIdx(player, idx) {
+  _piEnemyIdx[player] = idx;
+  _lastEnemyKey[player] = null;   // forciere Reload
+  refreshPiEnemy();
+}
+
 async function refreshPiEnemy() {
   if (!piMode || !piMode.startsWith('enemy_')) return;
   const player = piMode.slice('enemy_'.length);
@@ -2151,12 +2209,36 @@ async function refreshPiEnemy() {
   if (labelEl) labelEl.textContent = playerLabel;
 
   const at = data && data['autoTeam_' + player];
-  const en = at && at.enemy;
+  // Gegner-Liste: enemyTeam[] hat alle Gegner-Slots (1=wild, 2-6=trainer)
+  const enemyTeam = (at && Array.isArray(at.enemyTeam) && at.enemyTeam.length) ? at.enemyTeam : (at && at.enemy ? [at.enemy] : []);
+  // Index begrenzen falls Team kleiner wurde
+  if (_piEnemyIdx[player] >= enemyTeam.length) _piEnemyIdx[player] = 0;
+  const en = enemyTeam[_piEnemyIdx[player]];
+
   const emptyEl  = document.getElementById('pi-enemy-empty');
   const outEl    = document.getElementById('pokeinfo-output');
   const spriteEl = document.getElementById('pokeinfo-sprite');
   const movesBox = document.getElementById('pi-actual-moves-box');
   const learnBox = document.getElementById('pi-learnset-box');
+  const slotsEl  = document.getElementById('pi-enemy-slots');
+
+  // Slot-Picker rendern wenn mehrere Gegner-Slots
+  if (slotsEl) {
+    if (enemyTeam.length > 1) {
+      slotsEl.style.display = 'flex';
+      const playerColor = ((LIVE_PLAYERS.find(p => p.slot === player)) || {}).color || 'var(--accent)';
+      slotsEl.innerHTML = enemyTeam.map((m, i) => {
+        const active = i === _piEnemyIdx[player];
+        const gname = (GERMAN_NAMES && GERMAN_NAMES[m.species]) || ('#' + m.species);
+        return `<button onclick="setPiEnemyIdx('${player}',${i})" title="${gname} (Lv${m.level ?? '?'})" style="background:${active ? playerColor : 'var(--surface)'};border:1px solid ${active ? playerColor : 'var(--border)'};color:${active ? 'var(--bg)' : 'var(--text)'};padding:4px 8px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:11px;font-weight:${active ? 700 : 500};display:flex;align-items:center;gap:4px;">
+          <img src="${spriteUrl(m.species)}" style="width:20px;height:20px;image-rendering:pixelated;">${i + 1}
+        </button>`;
+      }).join('');
+    } else {
+      slotsEl.style.display = 'none';
+      slotsEl.innerHTML = '';
+    }
+  }
 
   if (!en || !en.species) {
     if (emptyEl)  emptyEl.style.display  = 'block';
@@ -2169,7 +2251,7 @@ async function refreshPiEnemy() {
   }
   if (emptyEl) emptyEl.style.display = 'none';
 
-  const key = `${en.species}|${en.ability || 0}|${(en.moves || []).join(',')}`;
+  const key = `${_piEnemyIdx[player]}|${en.species}|${en.ability || 0}|${(en.moves || []).join(',')}`;
   if (_lastEnemyKey[player] === key) return;   // gleicher Gegner → kein Reload
 
   const name = (typeof GERMAN_NAMES !== 'undefined' && GERMAN_NAMES[en.species]) || ('#' + en.species);
@@ -2510,7 +2592,10 @@ function filterEncPoke(encIdx, player, query) {
 function selectEncPoke(encIdx, player, id, name) {
   data.encounters[encIdx][player+'_id'] = id;
   data.encounters[encIdx][player+'_name'] = name;
-  save();
+  const upd = {};
+  upd[`encounters/${encIdx}/${player}_id`]   = id;
+  upd[`encounters/${encIdx}/${player}_name`] = name;
+  db.ref(currentRunId).update(upd).catch(()=>{});
   const list = document.getElementById(`epl-${encIdx}-${player}`);
   if (list) list.classList.remove('open');
   const inp = document.getElementById(`eps-${encIdx}-${player}`);
@@ -2634,7 +2719,8 @@ function renderEncounters() {
                 autocomplete="off"
                 style="color:var(--${p});"
                 oninput="filterEncPoke(${i},'${p}',this.value)"
-                onfocus="openEncDrop(${i},'${p}')">
+                onfocus="openEncDrop(${i},'${p}')"
+                onblur="setTimeout(()=>matchEncPoke(${i},'${p}',this.value),150)">
               <div class="poke-list" id="epl-${i}-${p}"></div>
             </div>
           </div>
@@ -2654,31 +2740,35 @@ function renderEncounters() {
 
 function matchEncPoke(encIdx, player, query) {
   loadPokeList();
-  const q = query.trim().toLowerCase();
+  const q = (query || '').trim().toLowerCase();
+  // Partielles Update — autoTeam_* nicht clobbern
+  const upd = {};
   if (!q) {
     data.encounters[encIdx][player+'_id'] = '';
     data.encounters[encIdx][player+'_name'] = '';
+    upd[`encounters/${encIdx}/${player}_id`]   = '';
+    upd[`encounters/${encIdx}/${player}_name`] = '';
     updateEncSprite(encIdx, player, null);
-    save();
+    db.ref(currentRunId).update(upd).catch(()=>{});
     return;
   }
-  // 1. Exakter Treffer
-  let match = POKEMON_LIST.find(p => p.name.toLowerCase() === q);
-  // 2. Beginnt mit Eingabe
-  if (!match) match = POKEMON_LIST.find(p => p.name.toLowerCase().startsWith(q));
-  // 3. Enthält Eingabe
-  if (!match) match = POKEMON_LIST.find(p => p.name.toLowerCase().includes(q));
-
+  let match = POKEMON_LIST.find(p => p.name.toLowerCase() === q)
+           || POKEMON_LIST.find(p => p.name.toLowerCase().startsWith(q))
+           || POKEMON_LIST.find(p => p.name.toLowerCase().includes(q));
   if (match) {
     data.encounters[encIdx][player+'_id'] = match.id;
     data.encounters[encIdx][player+'_name'] = match.name;
+    upd[`encounters/${encIdx}/${player}_id`]   = match.id;
+    upd[`encounters/${encIdx}/${player}_name`] = match.name;
     updateEncSprite(encIdx, player, match.id);
   } else {
     data.encounters[encIdx][player+'_id'] = '';
     data.encounters[encIdx][player+'_name'] = query;
+    upd[`encounters/${encIdx}/${player}_id`]   = '';
+    upd[`encounters/${encIdx}/${player}_name`] = query;
     updateEncSprite(encIdx, player, null);
   }
-  save();
+  db.ref(currentRunId).update(upd).catch(()=>{});
 }
 
 function updateEncSprite(encIdx, player, id) {
@@ -2699,11 +2789,15 @@ function updateEncSprite(encIdx, player, id) {
 
 function updateEnc(i, field, val) {
   data.encounters[i][field] = val;
+  const upd = {};
+  upd[`encounters/${i}/${field}`] = val;
   // Wenn Status auf "gefangen" gesetzt: automatisch Link erstellen
   if (field === 'status' && val === 'caught') {
     autoCreateLink(i);
+    // autoCreateLink ändert data.links — diese auch mit pushen
+    upd['links'] = data.links;
   }
-  save();
+  db.ref(currentRunId).update(upd).catch(()=>{});
 }
 
 function autoCreateLink(encIdx) {
@@ -2905,6 +2999,110 @@ const TYPE_DE = {
 // Gen 5 Typen (kein Fee)
 const GEN5_TYPES = ['normal','fire','water','electric','grass','ice','fighting','poison','ground','flying','psychic','bug','rock','ghost','dragon','dark','steel'];
 
+// Gen-5-spezifische Item-IDs → DE-Name (BW2 in-game IDs).
+// PokéAPI hat unterschiedliche IDs für manche Items — diese Tabelle ist
+// die korrekte Quelle. Nicht-gelistete IDs fallen auf PokéAPI zurück.
+const GEN5_ITEMS = {
+  // Pokébälle 1–16
+  1:'Meisterball', 2:'Hyperball', 3:'Superball', 4:'Pokéball', 5:'Safariball',
+  6:'Netzball', 7:'Tauchball', 8:'Nestball', 9:'Wiederball', 10:'Timerball',
+  11:'Luxusball', 12:'Premierball', 13:'Finsterball', 14:'Heilball', 15:'Flottball',
+  16:'Jubelball',
+  // Heilung 17–63
+  17:'Trank', 18:'Gegengift', 19:'Feuerheiler', 20:'Eisheiler', 21:'Aufwecker',
+  22:'Para-Heiler', 23:'Top-Genesung', 24:'Top-Trank', 25:'Hypertrank',
+  26:'Supertrank', 27:'Vollheiler', 28:'Beleber', 29:'Top-Beleber',
+  30:'Frischwasser', 31:'Sprudel', 32:'Limonade', 33:'Kuhmuh-Milch',
+  34:'EP-Plus', 35:'KP-Plus', 36:'Protein', 37:'Eisen', 38:'Carbon', 39:'Kalzium',
+  40:'Lavendelkraut', 41:'Esoteralia', 42:'Energiestaub', 43:'Energiewurzel',
+  44:'Heilpuder', 45:'Vitalkraut', 46:'Äther', 47:'Top-Äther', 48:'Elixier', 49:'Top-Elixier',
+  50:'Sonderbonbon', 51:'PP-Plus', 52:'PP-Top',
+  53:'Tafelbeere', 54:'Eisheiler-Beere', 55:'Hibischsoda', 56:'Schmackpilz',
+  // Fluchtitems / Repel
+  72:'Schutz', 73:'Top-Schutz', 74:'Hyper-Schutz',
+  // Evolutions-Steine
+  80:'Feuerstein', 81:'Wasserstein', 82:'Donnerstein', 83:'Blattstein',
+  84:'Mondstein', 85:'Sonnenstein', 86:'Funkelstein', 87:'Leuchtstein',
+  108:'Dunkelstein',
+  // Beeren 149–212 (Auswahl, häufigste)
+  149:'Amrenabeere', 150:'Maranjabeere', 151:'Tsitrubeere', 152:'Pirsifbeere',
+  153:'Fragiabeere', 154:'Wunfrubeere', 155:'Tamotbeere', 156:'Sinelbeere',
+  157:'Pyapabeere', 158:'Yapabeere', 159:'Magobeere', 160:'Goldbeere',
+  161:'Mohnbeere', 162:'Wepabeere', 163:'Honmelbeere', 164:'Lakribeere',
+  165:'Sananabeere', 166:'Granabeere', 167:'Setangbeere', 168:'Quab-Beere',
+  169:'Himmihbeere', 170:'Morbbeere', 171:'Nanabbeere', 172:'Nirbebeere',
+  173:'Sambeere', 174:'Persimbeere', 175:'Prunusbeere', 176:'Ohrdaubeere',
+  177:'Kerubisbeere', 178:'Hopobeere', 179:'Wassinbeere', 180:'Burleobeere',
+  181:'Babiribeere', 182:'Schukbeere', 183:'Kobabeere', 184:'Pyapabeere',
+  185:'Tahaybeere', 186:'Mahabeere', 187:'Pamtrebeere',
+  // Held-Items / Battle-Items
+  201:'Erdmantel', 202:'Eisenkugel', 203:'Roter Schal', 204:'Blauer Schal',
+  205:'Rosa Schal', 206:'Grüner Schal', 207:'Gelber Schal',
+  208:'Heilkraut', 209:'Glücksrucksack', 210:'Stahlmantel',
+  211:'Roter Faden', 212:'Sturzhelm',
+  // Wahl-/Spezial-Items
+  214:'Glücksamulett',
+  217:'Schnellklaue', 218:'Heilstaub', 219:'Lakritze',
+  220:'Wahlband', 221:'Königsstein', 222:'Silberstaub',
+  223:'Münzamulett', 224:'Reinigungsmaske', 225:'Mentalkraut',
+  227:'Magnet', 228:'Erinnerungsband',
+  229:'Notfallbeere', 230:'Drosselzapfen',
+  231:'Glücks-Ei', 232:'Scope-Linse', 233:'Metallmantel',
+  234:'Überreste', 235:'Drachenhaut', 236:'Kugelblitz',
+  237:'Machoband', 238:'EP-Teiler', 239:'Drachenklaue', 240:'Wasserstein',
+  241:'Wunderkugel', 242:'Spelon-Beere',
+  244:'Spurensand', 246:'Schwarzgurt', 247:'Magnetband',
+  248:'Schwarze Brille', 249:'Banditenmuts',
+  250:'Wundersaat',
+  252:'Sonnenstein', 253:'Mondstein',
+  257:'Metallstaub', 258:'Gewichtsgurt', 259:'Bandagen',
+  260:'Linsenband', 261:'Laufschuhe-Item',
+  263:'Wahrsagezahn',
+  266:'Aktivator', 267:'Glückspunsch', 268:'Glücksflocke',
+  270:'Leben-Orb', 271:'Energieband', 272:'Toxik-Orb', 273:'Heiß-Orb',
+  274:'Bremsdorn', 275:'Fokusgurt', 276:'Zoom-Linse', 277:'Aktivator',
+  278:'Rauch-Ball',
+  281:'Schwarze Schlacke', 282:'Eisbrocken',
+  286:'Notfallschutz',
+  287:'Wahlschal', 289:'Wassergeschoss',
+  293:'Schädelhelm', 294:'Iro-Schub', 297:'Wahlglas',
+  // PWT/Wechsel + Items aus BW2-Quests
+  547:'Wechselhülle',
+  // Bauerns / Spezial
+  564:'Ovaler Stein',
+};
+
+// Item-Name-Cache + Lookup (Gen5-Tabelle first, dann PokéAPI)
+const _itemNameCache = {};   // id -> name (sobald geladen)
+const _itemNamePending = {}; // id -> Promise
+function gen5ItemNameSync(id) {
+  if (!id || id <= 0) return '–';
+  if (GEN5_ITEMS[id]) return GEN5_ITEMS[id];
+  if (_itemNameCache[id] !== undefined) return _itemNameCache[id];
+  return '#' + id;
+}
+function fetchItemName(id) {
+  if (!id || id <= 0) return Promise.resolve('–');
+  if (GEN5_ITEMS[id]) return Promise.resolve(GEN5_ITEMS[id]);
+  if (_itemNameCache[id] !== undefined) return Promise.resolve(_itemNameCache[id]);
+  if (_itemNamePending[id]) return _itemNamePending[id];
+  _itemNamePending[id] = (async () => {
+    try {
+      const r = await fetch(`https://pokeapi.co/api/v2/item/${id}`);
+      const it = await r.json();
+      const de = (it.names || []).find(n => n.language.name === 'de')?.name || it.name || ('#' + id);
+      _itemNameCache[id] = de;
+      return de;
+    } catch {
+      _itemNameCache[id] = '#' + id;
+      return '#' + id;
+    } finally {
+      delete _itemNamePending[id];
+    }
+  })();
+  return _itemNamePending[id];
+}
+
 // Cache für Typ-Daten
 const typeDataCache = {};
 
@@ -2916,16 +3114,12 @@ async function fetchTypeDataGen5(typeName) {
   // Basis damage_relations
   let dr = data.damage_relations;
 
-  // past_damage_relations: schaue ob es einen Eintrag für generation-v gibt
-  // Das Feld enthält die letzten Generationen in der die alten Daten gültig waren
+  // past_damage_relations enthält den VOLLSTÄNDIGEN Snapshot der
+  // Damage-Relations für jede Generation. Wenn ein Eintrag für Gen 5
+  // existiert, wholesale verwenden (NICHT mergen — das war buggy).
   if (data.past_damage_relations && data.past_damage_relations.length > 0) {
-    // Suche nach generation-v oder früheren Einträgen die für Gen 5 relevant sind
     const gen5Past = data.past_damage_relations.find(p => p.generation.name === 'generation-v');
-    if (gen5Past) {
-      // Merge: past überschreibt aktuelle Einträge
-      const pastDr = gen5Past.damage_relations;
-      dr = mergeDamageRelations(dr, pastDr);
-    }
+    if (gen5Past) dr = gen5Past.damage_relations;
   }
 
   // Konvertiere in einfaches {typ: multiplikator} Format, Fee ignorieren
@@ -3307,8 +3501,20 @@ async function selectPokeInfo(id, name) {
       formsWrap.style.display = 'none';
     }
 
-    // Catchrate aus Species-Daten
-    const captureRate = species.capture_rate;
+    // Catchrate aus Species-Daten — mit Gen-5-Override für Legendaries
+    // (PokéAPI gibt aktuellen Gen-8/9-Wert; viele Legis hatten in Gen 5
+    // einen anderen, niedrigeren Catchrate)
+    const GEN5_CATCHRATE_OVERRIDE = {
+      150:3, 144:3, 145:3, 146:3, 151:45,
+      243:3, 244:3, 245:3, 249:3, 250:3, 251:45,
+      377:3, 378:3, 379:3, 380:3, 381:3, 382:5, 383:5, 384:3, 385:3, 386:3,
+      480:3, 481:3, 482:3, 483:3, 484:3, 485:3, 486:3, 487:3, 488:3,
+      489:30, 490:3, 491:3, 492:45, 493:3,
+      494:3, 638:3, 639:3, 640:3, 641:3, 642:3, 643:3, 644:3, 645:3,
+      646:3, 647:3, 648:3, 649:3,
+    };
+    const speciesId = species.id;
+    const captureRate = GEN5_CATCHRATE_OVERRIDE[speciesId] ?? species.capture_rate;
     if (captureRate !== undefined) {
       // Gen 5 exakte Formel (Cave of Dragonflies / Bulbapedia)
       // Bei vollen KP, Pokéball (B=1), kein Status (S=1), normales Gras (G=1)
