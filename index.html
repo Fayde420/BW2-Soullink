@@ -2171,8 +2171,29 @@ window.mock = (function() {
     const merged = { ...at, ...patch, updatedAt: Date.now() };
     if (merged.team) merged.teamCount = merged.team.length;
     if (merged.box)  merged.boxCount  = merged.box.length;
+    // Lokal direkt aktualisieren damit Folge-Calls (z.B. mock.catch nach mock.enemy)
+    // die neuen Daten sofort sehen — nicht erst nach Firebase-Listener-Roundtrip.
+    data['autoTeam_' + player] = merged;
     db.ref(currentRunId + '/autoTeam_' + player).set(merged).catch(()=>{});
     return merged;
+  }
+
+  function _fillEncounterDirect(player, route, species, name, pid) {
+    if (!route || route === '__ignore__') return;
+    const encIdx = (data.encounters || []).findIndex(e => e.route === route);
+    if (encIdx === -1) return;
+    const enc = data.encounters[encIdx];
+    if (enc[player + '_id']) return;  // schon belegt
+    enc[player + '_id']   = species;
+    enc[player + '_name'] = name;
+    enc[player + '_pid']  = pid;
+    const upd = {};
+    upd[`encounters/${encIdx}/route`]          = enc.route;
+    upd[`encounters/${encIdx}/status`]         = enc.status || 'uncaught';
+    upd[`encounters/${encIdx}/${player}_id`]   = species;
+    upd[`encounters/${encIdx}/${player}_name`] = name;
+    upd[`encounters/${encIdx}/${player}_pid`]  = pid;
+    db.ref(currentRunId).update(upd).catch(()=>{});
   }
 
   return {
@@ -2212,16 +2233,52 @@ window.mock = (function() {
       return pid;
     },
 
-    /** Encounter beenden + Wild fangen (PID landet im Team) */
+    /** Encounter beenden + Wild fangen (PID landet im Team)
+     *  Füllt zusätzlich den Encounter-Slot direkt (statt auf autoFill zu warten). */
     catch(player, species, name, pid) {
       const at = data['autoTeam_' + player];
       const e = at && at.enemy;
       species = species || (e && e.species);
       pid = pid || (e && e.pid);
       if (!species || !pid) { console.log('[mock] catch: keine enemy-Daten — gib species + pid an'); return; }
+      const name2 = name || (GERMAN_NAMES[species] || '#' + species);
+      // Encounter direkt füllen (autoFill ist async via Listener, zu spät)
+      const mapKey = String((at && (at.mapHeader || at.mapId)) || '');
+      const route = mapKey ? getMapMappings()[mapKey] : null;
+      _fillEncounterDirect(player, route, species, name2, pid);
       this.team(player, species, name, pid, e?.level || 5, e?.curHP || 20, e?.maxHP || 20);
       _set(player, { enemy: null, enemyTeam: [], battleType: null });
-      console.log('[mock] 🎯', player, 'fängt', name || ('#'+species));
+      console.log('[mock] 🎯', player, 'fängt', name2, route ? `auf ${route}` : '(keine Route)');
+    },
+
+    /** Komplett-Catch in einem Schritt: ohne separates enemy() davor.
+     *  mock.catchWild('jonah', 4, 'Glumanda', 'Route 20') */
+    catchWild(player, species, name, route) {
+      const pid = _pid();
+      name = name || (GERMAN_NAMES[species] || '#' + species);
+      // Route mappen falls nötig
+      let mapId = null;
+      if (route) {
+        const m = getMapMappings();
+        const key = Object.keys(m).find(k => m[k] === route);
+        if (key) {
+          mapId = Number(key);
+        } else {
+          mapId = 220 + Math.abs(route.split('').reduce((a,c)=>a+c.charCodeAt(0),0)) % 100;
+          db.ref('_global/mapIdToRoute/' + mapId).set(route).catch(()=>{});
+          if (!_globalMap.mapIdToRoute) _globalMap.mapIdToRoute = {};
+          _globalMap.mapIdToRoute[mapId] = route;
+        }
+      }
+      // Pokemon ins Team
+      const at = data['autoTeam_' + player] || { team:[], box:[], enemyTeam:[] };
+      const mon = { species, pid, level: 5, curHP: 20, maxHP: 20, nick:'', item:0, ability:0, moves:[0,0,0,0], otTid: 12345 };
+      const newTeam = [...(at.team || []), mon];
+      _set(player, { team: newTeam, mapHeader: mapId, mapId: mapId });
+      // Encounter füllen
+      _fillEncounterDirect(player, route, species, name, pid);
+      console.log('[mock] 🎯', player, 'catchWild', name, route ? `auf ${route}` : '');
+      return pid;
     },
 
     /** Encounter beenden ohne Catch (Run/KO) */
