@@ -1772,17 +1772,34 @@ function renderLive() {
 
 function _renderSoullinkRow(link, linkIdx, slots, isFullyDead) {
   const routeLabel = link.route || '';
-  // Header-Zeile + Pokémon untereinander gestapelt
+  // Header-Zeile + Pokémon untereinander gestapelt + Löschen-Button
   return `
     <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;${isFullyDead ? 'opacity:0.55;' : ''}">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
         <div style="font-family:'Press Start 2P',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;flex-shrink:0;">#${linkIdx + 1}${isFullyDead ? ' 💀' : ''}</div>
         ${routeLabel ? `<div style="font-size:11px;color:var(--accent3);flex-shrink:0;">📍 ${routeLabel}</div>` : ''}
+        <button onclick="deleteSoullink(${linkIdx})" title="Diesen Soullink löschen"
+          style="margin-left:auto;background:transparent;border:1px solid var(--border);color:var(--dead);width:24px;height:24px;border-radius:4px;cursor:pointer;font-size:14px;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center;transition:background 0.15s,border-color 0.15s;"
+          onmouseover="this.style.background='var(--dead)';this.style.color='#fff';this.style.borderColor='var(--dead)';"
+          onmouseout="this.style.background='transparent';this.style.color='var(--dead)';this.style.borderColor='var(--border)';">×</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:3px;">
         ${slots.map(s => _renderLinkSlotInline(s, link)).join('')}
       </div>
     </div>`;
+}
+
+// Soullink löschen — entfernt aus data.links und Firebase
+function deleteSoullink(linkIdx) {
+  if (!data.links || !data.links[linkIdx]) return;
+  const link = data.links[linkIdx];
+  const desc = PLAYERS.map(p => link[p+'_name'] || '?').join(' · ');
+  if (!confirm(`Soullink #${linkIdx + 1} löschen?\n\n${link.route || '(keine Route)'} — ${desc}`)) return;
+  data.links.splice(linkIdx, 1);
+  // Ganzes Array neu schreiben (splice verschiebt Indices)
+  db.ref(currentRunId + '/links').set(data.links).catch(()=>{});
+  console.log('[Trio] Link #' + (linkIdx + 1) + ' gelöscht:', desc);
+  renderLive();
 }
 
 function _renderLinkSlotInline(slot, link) {
