@@ -2149,6 +2149,128 @@ function assignMapTrio(player, mapKey) {
   renderLive();
 }
 
+// ══════════════════════════════════════════════════════════
+// TEST-HELFER: in Browser-Konsole (F12) verfügbar als `mock.*`
+// Damit kannst du Jonah und Jannik simulieren während du selbst
+// mit echtem BizHawk als Linus spielst. Beispiel-Workflow unten.
+// ══════════════════════════════════════════════════════════
+window.mock = (function() {
+  const _pid = () => Math.floor(Math.random() * 0xFFFFFFFF);
+
+  function _set(player, patch) {
+    const at = data['autoTeam_' + player] || { team:[], box:[], enemyTeam:[], teamCount:0, boxCount:0 };
+    const merged = { ...at, ...patch, updatedAt: Date.now() };
+    if (merged.team) merged.teamCount = merged.team.length;
+    if (merged.box)  merged.boxCount  = merged.box.length;
+    db.ref(currentRunId + '/autoTeam_' + player).set(merged).catch(()=>{});
+    return merged;
+  }
+
+  return {
+    /** Pokemon ins Team eines Spielers legen.
+     *  mock.team('jonah', 506, 'Yorkleff', 12345, 8) */
+    team(player, species, name, pid, level, curHP, maxHP) {
+      pid = pid || _pid();
+      level = level || 5;
+      maxHP = maxHP || (10 + level * 2);
+      curHP = (curHP == null) ? maxHP : curHP;
+      const at = data['autoTeam_' + player] || { team:[], box:[] };
+      const newTeam = [...(at.team || []), { species, pid, level, curHP, maxHP, nick:'', item:0, ability:0, moves:[0,0,0,0], otTid: 12345 }];
+      const merged = _set(player, { team: newTeam });
+      console.log('[mock] +', player, '→', name || ('#'+species), 'Lv'+level, 'PID', pid);
+      return pid;
+    },
+
+    /** Wild-Encounter simulieren (player läuft auf einer Map und sieht Wild).
+     *  mock.enemy('jonah', 506, 12345, 'Route 19' oder mapHeaderNumber) */
+    enemy(player, species, pid, mapHeader) {
+      pid = pid || _pid();
+      // mapHeader kann eine ID (number) oder ein Route-Name sein
+      let mapId = mapHeader;
+      if (typeof mapHeader === 'string') {
+        // Route-Name → suche existierende mapId, sonst Hash
+        const m = getMapMappings();
+        const key = Object.keys(m).find(k => m[k] === mapHeader);
+        mapId = key ? Number(key) : (200 + Math.abs(mapHeader.split('').reduce((a,c)=>a+c.charCodeAt(0),0)) % 100);
+        if (!key) {
+          // mappe ad-hoc
+          db.ref('_global/mapIdToRoute/' + mapId).set(mapHeader).catch(()=>{});
+        }
+      }
+      const enemy = { species, pid, level: 5, curHP: 20, maxHP: 20, nick:'', item:0, ability:0, moves:[0,0,0,0], otTid: 0 };
+      _set(player, { mapHeader: mapId, mapId: mapId, enemy: enemy, enemyTeam: [enemy], battleType: 'wild' });
+      console.log('[mock] ⚔', player, 'Wild #'+species, 'auf Map', mapId, 'PID', pid);
+      return pid;
+    },
+
+    /** Encounter beenden + Wild fangen (PID landet im Team) */
+    catch(player, species, name, pid) {
+      const at = data['autoTeam_' + player];
+      const e = at && at.enemy;
+      species = species || (e && e.species);
+      pid = pid || (e && e.pid);
+      if (!species || !pid) { console.log('[mock] catch: keine enemy-Daten — gib species + pid an'); return; }
+      this.team(player, species, name, pid, e?.level || 5, e?.curHP || 20, e?.maxHP || 20);
+      _set(player, { enemy: null, enemyTeam: [], battleType: null });
+      console.log('[mock] 🎯', player, 'fängt', name || ('#'+species));
+    },
+
+    /** Encounter beenden ohne Catch (Run/KO) */
+    clearEnemy(player) {
+      _set(player, { enemy: null, enemyTeam: [], battleType: null });
+      console.log('[mock] –', player, 'Kampf beendet ohne Catch');
+    },
+
+    /** Team-Pokemon auf HP=0 setzen (löst Death-Cascade aus) */
+    ko(player, pid) {
+      const at = data['autoTeam_' + player];
+      if (!at || !at.team) { console.log('[mock] kein Team'); return; }
+      const newTeam = at.team.map(m => m.pid === pid ? {...m, curHP: 0} : m);
+      _set(player, { team: newTeam });
+      console.log('[mock] 💀', player, 'PID', pid, '→ HP 0');
+    },
+
+    /** Alle Daten eines Spielers löschen */
+    clear(player) {
+      db.ref(currentRunId + '/autoTeam_' + player).remove().catch(()=>{});
+      console.log('[mock] reset', player);
+    },
+
+    /** Komplettes Beispiel-Soullink-Setup: alle 3 fangen Yorkleff auf Route 19 */
+    demo() {
+      const p1 = _pid(), p2 = _pid(), p3 = _pid();
+      this.enemy('linus',  506, p1, 'Route 19');
+      this.catch('linus',  506, 'Yorkleff', p1);
+      this.enemy('jonah',  506, p2, 'Route 19');
+      this.catch('jonah',  506, 'Yorkleff', p2);
+      this.enemy('jannik', 506, p3, 'Route 19');
+      this.catch('jannik', 506, 'Yorkleff', p3);
+      console.log('[mock] demo durch — schau in den Links-Tab, sollte 1 Link sein.');
+      return { p1, p2, p3 };
+    },
+
+    help() {
+      console.log(`
+═══ MOCK-Helfer (Browser-Konsole) ═══
+mock.team(p, species, name, pid?, lvl?, curHP?, maxHP?)
+  → Pokemon ins Team von p ('linus','jonah','jannik')
+mock.enemy(p, species, pid?, mapHeaderOrRouteName?)
+  → Wild-Encounter simulieren
+mock.catch(p, species?, name?, pid?)
+  → Aktuelles enemy als gefangen markieren (oder mit Args)
+mock.clearEnemy(p)
+  → Kampf beenden ohne Catch
+mock.ko(p, pid)
+  → Pokemon auf HP=0 setzen (Death-Cascade testet)
+mock.clear(p)
+  → Spieler-Daten löschen
+mock.demo()
+  → Beispiel: alle 3 fangen Yorkleff auf Route 19 (sollte 1 Link erzeugen)`);
+    },
+  };
+})();
+console.log('[mock] Test-Helfer geladen — tippe mock.help() für Befehle');
+
 // Links-Tab pollt alle 2s neu für aktuelles "Xs alt"-Label,
 // auch wenn keine neuen Firebase-Daten kommen.
 setInterval(() => {
