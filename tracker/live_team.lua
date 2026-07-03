@@ -381,23 +381,24 @@ end
 
 -- Gegner-Team lesen + Kampf-Typ ableiten
 local function refreshEnemy()
-  -- Die Live-HP-Leiste existiert nur während eines Kampfes. Ist sie ungültig,
-  -- ist gerade kein Kampf -> Gegneranzeige leeren (löst "bleibt nach Kampfende
-  -- stehen"). Das ist robuster als ENEMY_BASE, das nach dem Kampf veraltet
-  -- weiterlebt, bis der Battle-Heap überschrieben wird.
-  local cur = memory.read_u16_le(ENEMY_ACTIVE_CUR)
-  local mx  = memory.read_u16_le(ENEMY_ACTIVE_MAX)
-  if mx < 1 or mx > 999 or cur > mx then
+  -- Kampf-Erkennung über ENEMY_BASE (das Gegner-Team) — dieselbe zuverlässige
+  -- Adressierung wie Party/Map. Die früher als Gate genutzte ENEMY_ACTIVE-
+  -- HP-Leiste (0x02AA37C) liest auf diesem ROM Müll (eaMax=65535) und darf die
+  -- Erkennung NICHT mehr blockieren (sonst wird der Gegner nie erkannt —
+  -- Regression aus 8b693ad). Sie bleibt nur optionaler Overlay für die Live-HP
+  -- des aktiven Battlers (readActiveEnemy, greift nur wenn plausibel).
+  local et = readEnemyTeam()
+  if #et == 0 then
+    -- Kein gültig dekodierbares Gegner-Mon -> kein Kampf.
     cEnemyTeam, cEnemy = {}, nil
     cBattleType, lastBattleType = nil, nil
     lastEnemyCount = 0
     return
   end
-
-  local et = readEnemyTeam()
   cEnemyTeam = et
-  -- Aktiver Gegner folgt der vorne stehenden Position (KO/Wechsel).
-  -- Fallback = Slot 1, falls das maxHP-Matching (noch) nicht greift.
+  -- Aktiver Gegner: der ENEMY_ACTIVE-Leiste folgen, wenn sie plausibel ist
+  -- (Wechsel/KO bei Trainern); sonst Slot 1 (hat eigene curHP/maxHP aus
+  -- decryptFull -> cur-HP-Feature bleibt erhalten).
   local active = readActiveEnemy(et)
   cEnemy     = active or et[1]
   local bt = (#et >= 2) and "trainer" or "wild"
