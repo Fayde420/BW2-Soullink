@@ -788,6 +788,7 @@ window.addEventListener('load', () => {
   <p class="section-title">Soullinks · Live</p>
 
   <div style="display:flex;justify-content:flex-end;margin-bottom:12px;gap:8px;">
+    <button onclick="showMapMappings()" title="Alle Map-Zuordnungen verwalten" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:7px 14px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:12px;">🗺 Zuordnungen</button>
     <button onclick="openManualLinkModal()" style="background:var(--accent);border:none;color:var(--bg);padding:7px 14px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;">+ Manueller Link</button>
   </div>
 
@@ -814,6 +815,17 @@ window.addEventListener('load', () => {
 </div>
 
 <!-- ══════════════════════ Pokémon-Detail-Modal (für Klick auf Live-Karten) ══════════════════════ -->
+<!-- Map-Zuordnungen-Modal (von Solo portiert) -->
+<div id="mapmap-modal" onclick="if(event.target===this)hideMapMappings()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:5800;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:24px;width:min(540px,92vw);max-height:80vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="font-family:'Press Start 2P',monospace;font-size:10px;color:var(--accent);letter-spacing:1px;">🗺 Map-Zuordnungen</div>
+      <button onclick="hideMapMappings()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:22px;">×</button>
+    </div>
+    <div id="mapmap-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+  </div>
+</div>
+
 <div id="link-detail-modal" onclick="if(event.target===this)hideLinkDetail()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:6000;align-items:center;justify-content:center;cursor:zoom-out;">
   <div onclick="event.stopPropagation()" style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:24px;width:min(520px,92vw);max-height:88vh;overflow-y:auto;cursor:auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
@@ -2213,6 +2225,65 @@ function assignMapTrio(player, mapKey) {
   if (!_globalMap.mapIdToRoute) _globalMap.mapIdToRoute = {};
   _globalMap.mapIdToRoute[mapKey] = route;
   renderLive();
+}
+
+// ── Map-Zuordnungen verwalten (Modal, von Solo portiert) ──
+// Falsche Zuordnungen (Map-ID → Route) einsehen und löschen; nach dem Löschen
+// erscheint beim nächsten Betreten der Map wieder das Zuordnungs-Banner.
+function showMapMappings() {
+  document.getElementById('mapmap-modal').style.display = 'flex';
+  renderMapMappingsList();
+}
+function hideMapMappings() {
+  document.getElementById('mapmap-modal').style.display = 'none';
+}
+function deleteMapping(key) {
+  if (!key) return;
+  db.ref('_global/mapIdToRoute/' + key).remove().catch(()=>{});
+  if (_globalMap.mapIdToRoute) delete _globalMap.mapIdToRoute[key];
+  render();
+}
+function deleteMappingFromModal(key) {
+  deleteMapping(key);
+  renderMapMappingsList();
+}
+function renderMapMappingsList() {
+  const list = document.getElementById('mapmap-list');
+  if (!list) return;
+  const entries = Object.entries(getMapMappings());
+  if (entries.length === 0) {
+    list.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px;font-size:13px;">Noch keine Zuordnungen vorhanden.</div>';
+    return;
+  }
+  // Aktuelle Map(s) markieren: pro Spieler, mit Label (Mehrspieler-Variante
+  // von Solos Einzel-currentKey).
+  const cur = {};   // mapKey -> [Spieler-Label, ...]
+  PLAYERS.forEach(p => {
+    const k = autoMapKey(data['autoTeam_' + p] || {});
+    if (!k) return;
+    const label = ((LIVE_PLAYERS.find(x => x.slot === p)) || {}).label || p;
+    (cur[k] = cur[k] || []).push(label);
+  });
+  entries.sort((a, b) => {
+    const ca = cur[a[0]] ? 0 : 1, cb = cur[b[0]] ? 0 : 1;
+    if (ca !== cb) return ca - cb;
+    return (a[1] || '').localeCompare(b[1] || '');
+  });
+  list.innerHTML = entries.map(([key, route]) => {
+    const here = cur[key];
+    const isIgnored = route === '__ignore__';
+    const label = isIgnored ? '(ignoriert)' : route;
+    const labelColor = isIgnored ? 'var(--muted)' : here ? 'var(--accent)' : 'var(--text)';
+    return `
+      <div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface2);border:1px solid ${here ? 'var(--accent)' : 'var(--border)'};border-radius:6px;padding:10px 12px;">
+        <div style="min-width:0;flex:1;margin-right:10px;">
+          <div style="font-family:'Press Start 2P',monospace;font-size:8px;color:var(--muted);letter-spacing:1px;margin-bottom:3px;">${here ? '★ ' + here.join(' + ') + ' · ' : ''}${key}</div>
+          <div style="font-size:13px;color:${labelColor};${isIgnored ? 'font-style:italic;' : 'font-weight:600;'}">${label}</div>
+        </div>
+        <button onclick="deleteMappingFromModal('${key}')" style="background:none;border:1px solid var(--dead);color:var(--dead);padding:4px 12px;border-radius:4px;font-size:11px;cursor:pointer;flex-shrink:0;">Löschen</button>
+      </div>
+    `;
+  }).join('');
 }
 
 // ══════════════════════════════════════════════════════════
