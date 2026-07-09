@@ -1336,17 +1336,17 @@ function autoMapKey(at) {
   return parts.length ? parts.join('_') : null;
 }
 
-// Trainer-Kampf erkennen (2+ Gegner oder fremde OT-ID)
+// Trainer-Kampf erkennen. Primär: battleType der Lua (otTid-basiert, erkennt
+// Doppel-WILD im dunklen Gras korrekt als wild). Fallback für alte Lua-Stände:
+// Heuristik über OT-IDs aller Gegner (2+ Slots allein heißt NICHT Trainer!).
 function isTrainerBattle(at) {
   if (!at) return false;
-  const enemyCount = (at.enemyTeam || []).length;
-  if (enemyCount === 0) return false;
-  if (enemyCount >= 2) return true;
-  const enemy = at.enemy;
-  if (!enemy) return false;
+  if (at.battleType) return at.battleType === 'trainer';
+  const et = at.enemyTeam || [];
+  if (et.length === 0 && !at.enemy) return false;
   const playerTid = ((at.team || [])[0] || {}).otTid;
-  if (enemy.otTid && playerTid != null && enemy.otTid !== playerTid) return true;
-  return false;
+  const mons = et.length ? et : [at.enemy];
+  return mons.some(m => m && m.otTid && m.otTid !== playerTid);
 }
 
 // Routes mit Tutorial-Encountern, die übersprungen werden
@@ -1517,8 +1517,29 @@ function autoFillEncounterTrio(player) {
   upd[`encounters/${encIdx}/${player}_id`]   = speciesId;
   upd[`encounters/${encIdx}/${player}_name`] = name;
   upd[`encounters/${encIdx}/${player}_pid`]  = pid;
+  // Doppel-WILD (dunkles Gras): auch die PID des Partner-Mons merken — fängt
+  // der Spieler stattdessen den Partner, erkennt watchCatch das über _pid2
+  // und korrigiert den Eintrag auf das tatsächlich gefangene Pokémon.
+  const partner = (at.enemyTeam || []).find(m => m && m.pid && m.pid !== pid);
+  if (partner) {
+    enc[player + '_pid2'] = partner.pid;
+    upd[`encounters/${encIdx}/${player}_pid2`] = partner.pid;
+  }
   db.ref(currentRunId).update(upd).catch(()=>{});
   console.log('[Trio AutoTracker] Encounter:', player, route, '→', name);
+  autoMarkRouteDoneIfAllEntered(enc);
+}
+
+// Route abhaken, sobald ALLE Spieler auf dieser Route einen Encounter
+// EINGETRAGEN haben — egal ob gefangen oder nicht (Nuzlocke: die eine
+// Begegnung pro Route ist verbraucht). Läuft nach Auto- UND Manuell-Eintrag.
+function autoMarkRouteDoneIfAllEntered(enc) {
+  if (!enc || !PLAYERS.every(p => enc[p + '_id'])) return;
+  const routeIdx = (data.routes || []).findIndex(r => r.name === enc.route);
+  if (routeIdx === -1 || (data.routes[routeIdx] || {}).done) return;
+  data.routes[routeIdx].done = true;
+  db.ref(currentRunId).update({ [`routes/${routeIdx}/done`]: true }).catch(()=>{});
+  console.log('[Trio AutoTracker] ✅ Route abgehakt (alle eingetragen):', enc.route);
 }
 
 // ── Auto-Fang-Erkennung pro Spieler + Soullink-Detection ──
@@ -1539,12 +1560,27 @@ function watchCatchTrio() {
       if (!at) { allCaughtNow = false; return; }
       const inTeam = (at.team || []).some(m => m.pid === pid);
       const inBox  = (at.box  || []).some(m => m.pid === pid);
+      // Doppel-WILD: wurde stattdessen der Partner (_pid2) gefangen, den
+      // Eintrag auf das tatsächlich gefangene Mon korrigieren.
+      const pid2 = enc[p + '_pid2'];
+      const mon2 = pid2 ? ((at.team || []).find(m => m.pid === pid2) || (at.box || []).find(m => m.pid === pid2)) : null;
       if (inTeam || inBox) {
         enc[p + '_caught'] = true;
         updates[`encounters/${encIdx}/route`]        = enc.route;
         updates[`encounters/${encIdx}/${p}_caught`]  = true;
         dirty = true;
         console.log('[Trio AutoTracker] 🎯 Gefangen:', p, enc.route, '→', enc[p+'_name']);
+      } else if (mon2) {
+        const nm2 = (typeof GERMAN_NAMES !== 'undefined' && GERMAN_NAMES[mon2.species]) || ('#' + mon2.species);
+        enc[p + '_id'] = mon2.species; enc[p + '_name'] = nm2;
+        enc[p + '_pid'] = pid2; enc[p + '_caught'] = true;
+        updates[`encounters/${encIdx}/route`]       = enc.route;
+        updates[`encounters/${encIdx}/${p}_id`]     = mon2.species;
+        updates[`encounters/${encIdx}/${p}_name`]   = nm2;
+        updates[`encounters/${encIdx}/${p}_pid`]    = pid2;
+        updates[`encounters/${encIdx}/${p}_caught`] = true;
+        dirty = true;
+        console.log('[Trio AutoTracker] 🎯 Partner-Mon gefangen (Doppel-Wild):', p, enc.route, '→', nm2);
       } else {
         allCaughtNow = false;
       }
@@ -2844,6 +2880,7 @@ function selectEncPoke(encIdx, player, id, name) {
   upd[`encounters/${encIdx}/${player}_id`]   = id;
   upd[`encounters/${encIdx}/${player}_name`] = name;
   db.ref(currentRunId).update(upd).catch(()=>{});
+  autoMarkRouteDoneIfAllEntered(enc);   // manuell zählt wie auto
   const list = document.getElementById(`epl-${encIdx}-${player}`);
   if (list) list.classList.remove('open');
   const inp = document.getElementById(`eps-${encIdx}-${player}`);
@@ -2879,9 +2916,16 @@ document.addEventListener('mousedown', function(e) {
 
 // ENCOUNTERS
 function syncEncountersToRoutes() {
-  const old = data.encounters || [];
+  let old = data.encounters || [];
+  // Firebase liefert sparse Indizes als OBJEKT statt Array (z.B. wenn der
+  // erste Eintrag eines frischen Runs auf einem hohen Routen-Index landet).
+  // Ohne Normalisierung crasht .find() -> Encounter-Tab tot.
+  if (!Array.isArray(old)) {
+    const o = old; old = [];
+    Object.keys(o).forEach(k => { if (o[k]) old[Number(k)] = o[k]; });
+  }
   data.encounters = (data.routes || []).map(r => {
-    const existing = old.find(e => e.route === r.name);
+    const existing = old.find(e => e && e.route === r.name);
     return existing || { route:r.name, linus_id:'', linus_name:'', jonah_id:'', jonah_name:'', jannik_id:'', jannik_name:'', status:'uncaught', note:'' };
   });
 }
