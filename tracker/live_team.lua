@@ -523,25 +523,9 @@ while true do
     if frame % 300 ==  5 then refreshBox()   end   -- PC-Box (teuer)  (~1/5s)
     if frame % 60  == 20 then writeState()   end   -- Datei schreiben (~1/s)
 
-    -- Draw-Pfad: nur gecachte Werte (KEIN Decrypt hier)
-    gui.text(8, 8,  "AutoTracker " .. (lastWriteOk and "AKTIV" or "(...)"))
-    gui.text(8, 24, string.format("Map-ID: %d (parent %d)",
-      memory.read_u16_le(MAP_HEADER_CHILD), memory.read_u16_le(MAP_HEADER_PARENT)))
-    gui.text(8, 40, string.format("Team:   %d", lastTeamCount))
-    gui.text(8, 56, string.format("Box:    %d", lastBoxCount))
-    if lastBattleType then
-      gui.text(8, 72, string.format("Kampf:  %s (%d)", lastBattleType, lastEnemyCount))
-    else
-      gui.text(8, 72, "Kampf:  -")
-    end
-    -- HP der ersten 3 Slots aus Cache
-    for slot = 0, 2 do
-      local m = cHP[slot]
-      if m then
-        gui.text(8, 92 + slot * 14, string.format(
-          "S%d: Lv%2d  %3d/%3d", slot + 1, m.level, m.curHP, m.maxHP))
-      end
-    end
+    -- Anzeige bewusst minimal: nur der Aktiv-Status (Details stehen auf der
+    -- Website; Map/Team/Kampf-Infos hier waren nur Debug-Hilfe).
+    gui.text(8, 8, "AutoTracker " .. (lastWriteOk and "AKTIV" or "(...)"))
 
     emu.frameadvance()
   end
