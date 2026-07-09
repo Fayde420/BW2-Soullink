@@ -10,9 +10,10 @@ dem laufenden Spiel.
 Du brauchst: **BizHawk** (melonDS-Core), dein **BW2-ROM**, **Python 3**.
 
 1. Den Ordner **`tracker/`** herunterladen.
-2. In der CMD einmalig den Ordner festlegen — **Pfad an deinen echten
-   tracker-Ordner anpassen** (nicht wörtlich übernehmen!). Danach CMD **und**
-   BizHawk neu starten, sonst greift die Variable nicht:
+2. *(Meist überflüssig — nur prüfen!)* Beim Laden des Lua-Skripts zeigt die
+   BizHawk-Konsole `state.json → <Ordner>`. Zeigt sie **deinen tracker-Ordner**,
+   ist nichts weiter zu tun. Nur falls dort ein falscher Pfad steht: einmalig
+   festlegen (Pfad anpassen!) und danach CMD **und** BizHawk neu starten:
    ```cmd
    setx AUTOTRACKER_DIR "C:\Pfad\zum\tracker"
    ```

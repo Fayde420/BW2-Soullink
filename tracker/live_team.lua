@@ -61,24 +61,30 @@ local CHEAT_ITEM_SLOT_OFF   = 0x0194F8    -- Offset zum 1. Slot der Items-Tasche
 -- gelesen (siehe decryptPartyStats unten). Keine externen Adressen
 -- mehr nötig.
 -- ── Wohin wird state.json geschrieben? ──
--- WARUM nicht automatisch "neben das Skript": BizHawk meldet den Skript-Pfad
--- oft nur RELATIV (z.B. "./live_team.lua"), daher kann das Skript seinen echten
--- Ordner nicht zuverlässig selbst ermitteln — die Datei landete sonst im
--- Arbeitsverzeichnis von EmuHawk.
--- Lösung (universell & scp-sicher): Ordner aus der Umgebungsvariable
--- AUTOTRACKER_DIR. Pro Rechner EINMAL in der CMD setzen, dann BizHawk neu
--- starten:   setx AUTOTRACKER_DIR "C:\Pfad\zum\autotracker"
--- Reihenfolge: Env-Variable  >  fester Fallback unten  >  neben dem Skript.
-local OUTPUT_DIR = os.getenv("AUTOTRACKER_DIR")
-                or "C:/trash/PokemonWebsite/autotracker"   -- Fallback, falls keine Env-Var
-
+-- Reihenfolge:
+--   1. Umgebungsvariable AUTOTRACKER_DIR (falls gesetzt — gewinnt immer;
+--      setzen per CMD: setx AUTOTRACKER_DIR "C:\Pfad\zum\tracker",
+--      danach CMD + BizHawk neu starten)
+--   2. Ordner des Skripts selbst — aber NUR wenn BizHawk einen ABSOLUTEN
+--      Pfad meldet (beim Laden über den Datei-Dialog der Normalfall).
+--      Lua + Bridge liegen im selben tracker-Ordner -> passt automatisch,
+--      setx ist dann unnötig.
+--   3. Notnagel: fester Pfad (Haupt-PC). Meldet BizHawk den Skript-Pfad nur
+--      RELATIV (z.B. "./live_team.lua"), hilft nur Variante 1.
+-- Die Konsole zeigt beim Start, wohin geschrieben wird — im Zweifel prüfen!
 local function _scriptDir()
   local src = debug.getinfo(1, 'S').source
   if src:sub(1,1) == '@' then src = src:sub(2) end
   local dir = src:match("(.+)[/\\][^/\\]+$")
-  return dir or "."
+  if not dir then return nil end
+  -- absolut? (Windows "C:\..." / "C:/..." oder Unix "/...")
+  if dir:match("^%a:[/\\]") or dir:sub(1,1) == "/" then return dir end
+  return nil
 end
-local OUTPUT_FILE = (OUTPUT_DIR or _scriptDir()) .. "/state.json"
+local OUTPUT_DIR = os.getenv("AUTOTRACKER_DIR")
+                or _scriptDir()
+                or "C:/trash/PokemonWebsite/autotracker"   -- Notnagel (Haupt-PC)
+local OUTPUT_FILE = OUTPUT_DIR .. "/state.json"
 print("[AutoTracker] state.json → " .. OUTPUT_FILE)
 
 local A_POS = {[0]=0,0,0,0,0,0, 1,1,2,3,2,3, 1,1,2,3,2,3, 1,1,2,3,2,3}
