@@ -789,6 +789,7 @@ window.addEventListener('load', () => {
   <p class="section-title">Soullinks · Live</p>
 
   <div style="display:flex;justify-content:flex-end;margin-bottom:12px;gap:8px;">
+    <button id="graveyard-btn" onclick="showGraveyard()" title="Gefallene Soullinks anzeigen" style="display:none;background:var(--surface2);border:1px solid var(--dead);color:var(--dead);padding:7px 14px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:12px;">💀 Friedhof (<span id="graveyard-count">0</span>)</button>
     <button onclick="showMapMappings()" title="Alle Map-Zuordnungen verwalten" style="background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:7px 14px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:12px;">🗺 Zuordnungen</button>
     <button onclick="openManualLinkModal()" style="background:var(--accent);border:none;color:var(--bg);padding:7px 14px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;">+ Manueller Link</button>
   </div>
@@ -822,6 +823,17 @@ window.addEventListener('load', () => {
     Noch keine Live-Daten — sobald ein Spieler seine Bridge laufen lässt, erscheint hier das Team.
   </div>
   <div id="team-tab-body" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;"></div>
+</div>
+
+<!-- Friedhof-Modal (gefallene Soullinks) -->
+<div id="graveyard-modal" onclick="if(event.target===this)hideGraveyard()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:5900;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--dead);border-radius:12px;padding:24px;width:min(620px,92vw);max-height:82vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div style="font-family:'Press Start 2P',monospace;font-size:10px;color:var(--dead);letter-spacing:1px;">💀 Friedhof</div>
+      <button onclick="hideGraveyard()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:22px;">×</button>
+    </div>
+    <div id="graveyard-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+  </div>
 </div>
 
 <!-- ══════════════════════ Pokémon-Detail-Modal (für Klick auf Live-Karten) ══════════════════════ -->
@@ -1855,6 +1867,7 @@ function renderLive() {
   // ── Soullinks → pro Link 1 Row mit 3 Karten (Linus/Jonah/Jannik nebeneinander) ──
   const teamRows = [];
   const boxRows  = [];
+  const deadRows = [];   // gefallene Links → Friedhof, NICHT in der Übersicht
   (data.links || []).forEach((link, linkIdx) => {
     const slots = LIVE_PLAYERS.map(p => {
       const pid = link[p.slot + '_pid'];
@@ -1874,10 +1887,8 @@ function renderLive() {
     const allInBox    = slots.length > 0 && slots.every(s => s.location === 'box');
     const isFullyDead = LIVE_PLAYERS.every(pp => link.dead && link.dead[pp.slot]);
     const row = _renderSoullinkRow(link, linkIdx, slots, isFullyDead);
-    // Tote Links bleiben in der Hauptspalte sichtbar (nicht in die Box
-    // verschieben — das war ein Bug). Nur echte, alle-in-Box-Links (lebendig)
-    // wandern in die Box-Spalte.
-    if (isFullyDead) teamRows.push(row);
+    // Gefallene Links raus aus der Übersicht → nur im Friedhof.
+    if (isFullyDead) deadRows.push(row);
     else if (anyInTeam) teamRows.push(row);
     else if (allInBox) boxRows.push(row);
     else teamRows.push(row); // manuell / gemischt / nicht gefunden → Hauptspalte
@@ -1889,6 +1900,16 @@ function renderLive() {
   boxEl.innerHTML = boxRows.length
     ? boxRows.join('')
     : '<div style="text-align:center;color:var(--muted);font-size:12px;padding:18px 0;">Keine Links in Box</div>';
+
+  // Friedhof-Button + Modal-Liste aktualisieren
+  const gvBtn = document.getElementById('graveyard-btn');
+  const gvCount = document.getElementById('graveyard-count');
+  const gvList = document.getElementById('graveyard-list');
+  if (gvCount) gvCount.textContent = deadRows.length;
+  if (gvBtn) gvBtn.style.display = deadRows.length ? '' : 'none';
+  if (gvList) gvList.innerHTML = deadRows.length
+    ? deadRows.join('')
+    : '<div style="text-align:center;color:var(--muted);font-size:12px;padding:18px 0;">Noch keine gefallenen Links.</div>';
 
   // Dropdown-Auswahl wiederherstellen
   LIVE_PLAYERS.forEach(p => {
@@ -2385,6 +2406,16 @@ function showMapMappings() {
 }
 function hideMapMappings() {
   document.getElementById('mapmap-modal').style.display = 'none';
+}
+
+// ── Friedhof (gefallene Soullinks) ──
+// Die Liste wird laufend in renderLive() befüllt; hier nur ein-/ausblenden.
+function showGraveyard() {
+  renderLive();  // sicherstellen, dass die Liste aktuell ist
+  document.getElementById('graveyard-modal').style.display = 'flex';
+}
+function hideGraveyard() {
+  document.getElementById('graveyard-modal').style.display = 'none';
 }
 function deleteMapping(key) {
   if (!key) return;
