@@ -34,16 +34,8 @@ local BOX_SLOTS    = 30
 -- DE-Offset = US - 0x100 (gleich wie Party-Block).
 local MAP_HEADER_PARENT = 0x246748   -- US: 0x246848
 local MAP_HEADER_CHILD  = 0x246760   -- US: 0x246860
-local ENEMY_BASE      = 0x0258774   -- Gegner-Team (Wild + Trainer)
+local ENEMY_BASE      = 0x0258774   -- Gegner-Team (Wild + Trainer), 6 Slots à 220 B
 local ENEMY_SLOTS     = 6
--- Live-HP-Leiste der AKTIVEN Gegner-Position (UI-Heap). Folgt KO/Wechsel,
--- d.h. zeigt immer das Mon, das gerade vorne steht — anders als ENEMY_BASE,
--- das die Party in fester Reihenfolge mit eingefrorener HP hält.
--- ACHTUNG: Die Adresse WANDERT pro Session (dynamischer Heap; mal 0x2AA37C,
--- mal woanders/Müll). Deshalb kein Hardcode, sondern Mini-Scan über dieses
--- Fenster (Layout: cur@X u16, max@X+4 u16, 4-aligned) — siehe findHpbar().
-local HPBAR_SCAN_FROM = 0x2A8000
-local HPBAR_SCAN_TO   = 0x2AC000
 local BADGE_ADDR      = 0x226628    -- Orden-Bitfeld (u8) — identifiziert via find_badges.lua
                                     -- 0 → 1 (1. Orden) → 3 (2. Orden) → 7 (3.) → 15 (4.) → ...
                                     -- Wird als state.badges (Bit N = Orden N+1) gesendet
@@ -338,70 +330,14 @@ local function readEnemyTeam()
   return t
 end
 
--- ── Mini-Scan: Live-HP-Leiste des aktiven Gegners finden ──
--- Sucht im Scan-Fenster ein u16-Paar (cur@X, max@X+4), dessen max EXAKT einer
--- maxHP der ENEMY_BASE-Party entspricht und cur<=max ist. Treffer wird
--- gecacht; wird der Cache ungültig (Heap umgebaut), wird höchstens 1×/s neu
--- gescannt. Kampfende leert den Cache (refreshEnemy).
-local _hpbarAddr     = nil
-local _hpbarNextScan = 0    -- os.clock()-Schwelle für den nächsten Voll-Scan
-
-local function hpbarValidAt(addr, maxes)
-  local mx = memory.read_u16_le(addr + 4)
-  if mx < 10 or mx > 999 or not maxes[mx] then return false end
-  return memory.read_u16_le(addr) <= mx
-end
-
-local function findHpbar(team)
-  local maxes, any = {}, false
-  for _, m in ipairs(team) do
-    if m.maxHP and m.maxHP >= 10 and m.maxHP <= 999 then
-      maxes[m.maxHP] = true
-      any = true
-    end
-  end
-  if not any then return nil end
-  if _hpbarAddr and hpbarValidAt(_hpbarAddr, maxes) then return _hpbarAddr end
-  _hpbarAddr = nil
-  local now = os.clock()
-  if now < _hpbarNextScan then return nil end
-  _hpbarNextScan = now + 1.0
-  for addr = HPBAR_SCAN_FROM, HPBAR_SCAN_TO - 8, 4 do
-    if hpbarValidAt(addr, maxes) then
-      _hpbarAddr = addr
-      print(string.format("[AutoTracker] Gegner-HP-Leiste gefunden: 0x%X", addr))
-      return addr
-    end
-  end
-  return nil
-end
-
--- Aktiven Gegner bestimmen: Live-HP-Leiste (per Mini-Scan gefunden) hält die
--- HP der aktuell vorne stehenden Position (folgt KO/Wechsel). Wir matchen
--- ihre maxHP gegen die Party-Slots (maxHP ist im Kampf konstant) und liefern
--- den passenden Slot mit live überschriebener HP zurück.
--- Keine gültige Leiste / kein Match -> nil (Anzeige fällt auf Slot 1 zurück).
-local function readActiveEnemy(team)
-  local addr = findHpbar(team)
-  if not addr then return nil end
-  local cur = memory.read_u16_le(addr)
-  local mx  = memory.read_u16_le(addr + 4)
-  if mx < 1 or mx > 999 or cur > mx then return nil end
-  for _, m in ipairs(team) do
-    if m.maxHP == mx then
-      local a = {}
-      for k, v in pairs(m) do a[k] = v end
-      a.curHP  = cur
-      a.maxHP  = mx
-      a.active = true
-      return a
-    end
-  end
-  return nil
-end
-
--- (Veraltete HP-Kandidaten-Logik entfernt — HP kommt jetzt aus
--- decryptPartyStats direkt im decryptMon.)
+-- HINWEIS zum aktiven Gegner / Live-HP:
+-- Frühere Versuche, die "vorne stehende" Gegner-Position live zu verfolgen,
+-- liefen über die UI-HP-Leiste. Deren Adresse liegt in einem DYNAMISCHEN Heap,
+-- der pro Session wandert; ein Scan danach produziert Fehltreffer (kleine
+-- HP-Werte kommen im RAM millionenfach vor) und damit erratisches Verhalten.
+-- Bewusste Entscheidung: KEIN Scan mehr. Der aktive Gegner ist einfach Slot 1
+-- aus ENEMY_BASE (stabil). Bei Trainern mit mehreren Pokémon wählt man den
+-- Slot auf der Website manuell (alle Slots sind dort anklickbar).
 
 -- ── Caches (FrameCounter-Muster, vgl. NDS-Ironmon-Tracker) ──
 -- Teure RAM-Reads/Decrypts laufen NICHT jeden Frame, sondern gedrosselt.
@@ -432,24 +368,19 @@ end
 local function refreshEnemy()
   -- Kampf-Erkennung über ENEMY_BASE (das Gegner-Team) — dieselbe zuverlässige
   -- Adressierung wie Party/Map; wird vom Spiel nach Kampfende geleert
-  -- (live verifiziert). Die Live-HP-Leiste (wandernder UI-Heap) blockiert die
-  -- Erkennung NIE (Regression aus 8b693ad) — sie ist nur Overlay fürs
-  -- Auto-Folgen (readActiveEnemy via Mini-Scan, greift nur wenn gültig).
+  -- (live verifiziert).
   local et = readEnemyTeam()
   if #et == 0 then
     -- Kein gültig dekodierbares Gegner-Mon -> kein Kampf.
     cEnemyTeam, cEnemy = {}, nil
     cBattleType, lastBattleType = nil, nil
     lastEnemyCount = 0
-    _hpbarAddr = nil   -- Leisten-Cache leeren: nächster Kampf = neuer Heap
     return
   end
   cEnemyTeam = et
-  -- Aktiver Gegner: der Live-HP-Leiste folgen (Mini-Scan), wenn gültig
-  -- (Wechsel/KO bei Trainern); sonst Slot 1 (hat eigene curHP/maxHP aus
-  -- decryptFull -> cur-HP-Feature bleibt erhalten).
-  local active = readActiveEnemy(et)
-  cEnemy     = active or et[1]
+  -- Aktiver Gegner = Slot 1 (stabil). Kein RAM-Scan mehr (unzuverlässig);
+  -- bei Trainern klickt man die weiteren Slots auf der Website manuell.
+  cEnemy     = et[1]
   -- Kampf-Typ über OT-IDs statt Slot-Anzahl: BW2 hat Doppel-WILD-Kämpfe
   -- (dunkles Gras) mit 2 Gegnern. Wilde haben OT-ID 0 (wird erst beim Fang
   -- gesetzt); Trainer-Mons tragen die ID ihres Trainers. Sicherheitsnetz:

@@ -777,6 +777,7 @@ window.addEventListener('load', () => {
 
 <nav>
   <button class="active" onclick="showTab('pokemon')">🔍 Pokémon</button>
+  <button onclick="showTab('team')">👥 Team</button>
   <button onclick="showTab('links')">🔗 Links</button>
   <button onclick="showTab('encounter')">⚡ Encounter</button>
   <button onclick="showTab('routen')">🗺️ Routen</button>
@@ -812,6 +813,15 @@ window.addEventListener('load', () => {
     Jeder Mitspieler muss <code style="background:var(--surface2);padding:2px 6px;border-radius:3px;">bridge_trio.py --player &lt;name&gt;</code> laufen lassen
     (oder <code style="background:var(--surface2);padding:2px 6px;border-radius:3px;">start_&lt;name&gt;.bat</code> doppelklicken).
   </div>
+</div>
+
+<!-- ══════════════════════ TEAM ══════════════════════ -->
+<div id="tab-team" class="tab">
+  <p class="section-title">Live-Team</p>
+  <div id="team-empty" style="display:none;text-align:center;color:var(--muted);padding:40px;font-size:13px;">
+    Noch keine Live-Daten — sobald ein Spieler seine Bridge laufen lässt, erscheint hier das Team.
+  </div>
+  <div id="team-tab-body" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;"></div>
 </div>
 
 <!-- ══════════════════════ Pokémon-Detail-Modal (für Klick auf Live-Karten) ══════════════════════ -->
@@ -1294,6 +1304,7 @@ function render() {
   renderGyms();
   renderDeaths();
   renderLive();
+  renderTeamTab();
   // Auto-Encounter pro Spieler (mit Cross-Player Dupes-Clause)
   if (typeof autoFillEncounterTrio === 'function') {
     PLAYERS.forEach(p => {
@@ -1720,6 +1731,37 @@ function liveAgeLabel(updatedAt) {
   return `<span style="color:#ef5350;">offline (${Math.round(ageS/60)}m)</span>`;
 }
 
+// ── Team-Tab: pro Spieler das volle Live-Team + Box, Karten anklickbar ──
+function renderTeamTab() {
+  if (isUserInteracting()) return;
+  const body = document.getElementById('team-tab-body');
+  const empty = document.getElementById('team-empty');
+  if (!body) return;
+  const anyData = LIVE_PLAYERS.some(p => data['autoTeam_' + p.slot]);
+  if (empty) empty.style.display = anyData ? 'none' : 'block';
+  body.innerHTML = LIVE_PLAYERS.map(p => {
+    const at = data['autoTeam_' + p.slot];
+    const team = (at && at.team) || [];
+    const box  = (at && at.box)  || [];
+    const clickCard = (m, source, idx) => {
+      const isDeadPid = false; // Deaths werden über HP=0 in liveMonCard erkannt
+      return `<div onclick="showLinkDetail('${p.slot}','${source}',${idx})" style="cursor:pointer;transition:transform 0.12s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">${liveMonCard(m, isDeadPid)}</div>`;
+    };
+    const teamCards = team.length
+      ? team.map((m, i) => clickCard(m, 'team', i)).join('')
+      : `<div style="color:var(--muted);font-size:12px;padding:10px;">Kein Team.</div>`;
+    const boxCards = box.length
+      ? `<div style="font-family:'Press Start 2P',monospace;font-size:8px;color:var(--muted);letter-spacing:1px;margin:12px 0 6px;">PC-BOX (${box.length})</div>`
+        + box.map((m, i) => clickCard(m, 'box', i)).join('')
+      : '';
+    return `
+      <div style="background:var(--surface);border:1px solid ${p.color}55;border-radius:8px;padding:14px;">
+        <div style="font-family:'Press Start 2P',monospace;font-size:11px;color:${p.color};letter-spacing:1px;margin-bottom:12px;">${p.label}${at ? '' : ' <span style="color:var(--muted);font-size:9px;">· offline</span>'}</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">${teamCards}${boxCards}</div>
+      </div>`;
+  }).join('');
+}
+
 function liveMonCard(m, isMarkedDead) {
   const species = m.species;
   const gname = (GERMAN_NAMES && GERMAN_NAMES[species]) || m.nick || ('#' + species);
@@ -1829,12 +1871,16 @@ function renderLive() {
       return { p, link, pid, pokemon, location, slotIdx };
     });
     const anyInTeam   = slots.some(s => s.location === 'team');
-    const allInBox    = slots.every(s => s.location === 'box');
+    const allInBox    = slots.length > 0 && slots.every(s => s.location === 'box');
     const isFullyDead = LIVE_PLAYERS.every(pp => link.dead && link.dead[pp.slot]);
     const row = _renderSoullinkRow(link, linkIdx, slots, isFullyDead);
-    if (anyInTeam) teamRows.push(row);
-    else if (allInBox || isFullyDead) boxRows.push(row);
-    else teamRows.push(row); // gemischt / nicht alle gefunden → Team
+    // Tote Links bleiben in der Hauptspalte sichtbar (nicht in die Box
+    // verschieben — das war ein Bug). Nur echte, alle-in-Box-Links (lebendig)
+    // wandern in die Box-Spalte.
+    if (isFullyDead) teamRows.push(row);
+    else if (anyInTeam) teamRows.push(row);
+    else if (allInBox) boxRows.push(row);
+    else teamRows.push(row); // manuell / gemischt / nicht gefunden → Hauptspalte
   });
 
   teamEl.innerHTML = teamRows.length
@@ -1877,7 +1923,7 @@ function _renderSoullinkRow(link, linkIdx, slots, isFullyDead) {
           onmouseout="this.style.background='transparent';this.style.color='var(--dead)';this.style.borderColor='var(--border)';">×</button>
       </div>
       <div style="display:flex;flex-direction:column;gap:3px;">
-        ${slots.map(s => _renderLinkSlotInline(s, link)).join('')}
+        ${slots.map(s => _renderLinkSlotInline(s, link, linkIdx)).join('')}
       </div>
     </div>`;
 }
@@ -1931,16 +1977,21 @@ function reviveLink(linkIdx) {
   render();
 }
 
-function _renderLinkSlotInline(slot, link) {
+function _renderLinkSlotInline(slot, link, linkIdx) {
   const { p, pokemon, location, slotIdx } = slot;
   const isDead = link.dead && link.dead[p.slot];
   if (!pokemon) {
+    // Kein Live-Mon (manuell eingetragener Spieler ohne Tracker) — trotzdem
+    // anklickbar: Detail wird aus den Link-Daten (Species) aufgebaut.
     const species = link[p.slot + '_id'];
     const name = link[p.slot + '_name'] || '?';
+    const clickable = species != null && species !== '';
     return `
-      <div style="display:inline-flex;align-items:center;gap:5px;font-size:12px;${isDead ? 'opacity:0.4;' : 'opacity:0.6;'}">
-        ${species ? `<img src="${spriteUrl(species)}" style="width:28px;height:28px;image-rendering:pixelated;filter:grayscale(1);">` : ''}
-        <span style="color:var(--muted);">${name}</span>
+      <div ${clickable ? `onclick="showLinkDetailFromLink(${linkIdx},'${p.slot}')" title="${p.label} · ${name}"` : ''}
+        style="display:inline-flex;align-items:center;gap:5px;font-size:12px;${isDead ? 'opacity:0.4;' : 'opacity:0.75;'}${clickable ? 'cursor:pointer;padding:2px 6px;border-radius:4px;border:1px solid transparent;' : ''}"
+        ${clickable ? `onmouseover="this.style.borderColor='${p.color}';this.style.background='var(--surface)';" onmouseout="this.style.borderColor='transparent';this.style.background='transparent';"` : ''}>
+        ${species ? `<img src="${spriteUrl(species)}" style="width:28px;height:28px;image-rendering:pixelated;${isDead ? 'filter:grayscale(1);' : ''}">` : ''}
+        <span style="color:${isDead ? 'var(--muted)' : p.color};font-weight:${isDead ? 400 : 700};">${name}</span>
         ${isDead ? '<span>💀</span>' : ''}
       </div>`;
   }
@@ -2122,6 +2173,25 @@ function showLinkDetail(playerSlot, source, idx) {
 
 function hideLinkDetail() {
   document.getElementById('link-detail-modal').style.display = 'none';
+}
+
+// Detail aus einem Link öffnen, auch wenn KEINE Live-Daten existieren
+// (manuell eingetragener Spieler). Fällt auf Live-Mon zurück, falls vorhanden.
+function showLinkDetailFromLink(linkIdx, playerSlot) {
+  const link = (data.links || [])[linkIdx];
+  if (!link) return;
+  const species = link[playerSlot + '_id'];
+  if (species == null || species === '') return;
+  const at = data['autoTeam_' + playerSlot];
+  const pid = link[playerSlot + '_pid'];
+  let m = null;
+  if (at && pid) m = (at.team || []).find(x => x.pid === pid) || (at.box || []).find(x => x.pid === pid);
+  if (!m) m = { species: Number(species), nick: link[playerSlot + '_nick'] || '' };
+  const playerLabel = (LIVE_PLAYERS.find(p => p.slot === playerSlot) || {}).label || playerSlot;
+  document.getElementById('link-detail-slot').textContent =
+    playerLabel + ' · ' + (link[playerSlot + '_name'] || '?') + (m.curHP == null ? ' (manuell)' : '');
+  _renderLinkDetailBody(m, playerSlot);
+  document.getElementById('link-detail-modal').style.display = 'flex';
 }
 
 function _pokeWikiLink(label, text, extra) {
@@ -2649,23 +2719,19 @@ async function refreshPiEnemy() {
   const learnBox = document.getElementById('pi-learnset-box');
   const slotsEl  = document.getElementById('pi-enemy-slots');
 
-  // Slot-Picker rendern wenn mehrere Gegner-Slots
+  // Slot-Picker rendern wenn mehrere Gegner-Slots. ALLE Slots sind anklickbar
+  // (kein Auto-Wechsel per RAM mehr — das war unzuverlässig). Bei Trainern mit
+  // mehreren Pokémon klickst du die Slots einfach selbst durch.
   if (slotsEl) {
     if (enemyTeam.length > 1) {
       slotsEl.style.display = 'flex';
       const playerColor = ((LIVE_PLAYERS.find(p => p.slot === player)) || {}).color || 'var(--accent)';
       slotsEl.innerHTML = enemyTeam.map((m, i) => {
         const active = i === _piEnemyIdx[player];
-        const revealed = _piEnemyRevealed[player].has(i);
-        const gname = revealed ? ((GERMAN_NAMES && GERMAN_NAMES[m.species]) || ('#' + m.species)) : '???';
-        const title = revealed ? `${gname} (Lv${m.level ?? '?'})` : 'Noch nicht im Kampf gesehen';
-        const icon = revealed
-          ? `<img src="${spriteUrl(m.species)}" style="width:20px;height:20px;image-rendering:pixelated;">`
-          : `<span style="display:inline-flex;width:20px;height:20px;align-items:center;justify-content:center;background:var(--surface2);border:1px solid var(--border);border-radius:3px;font-weight:700;font-size:13px;color:var(--muted);">?</span>`;
-        // Nur bereits gesehene Slots sind anklickbar — kein Vorab-Spoiler durch
-        // Klick auf noch unbekannte Gegner. Unbekannte = disabled + abgedunkelt.
-        const clickAttr = revealed ? `onclick="setPiEnemyIdx('${player}',${i})"` : '';
-        return `<button ${clickAttr} ${revealed ? '' : 'disabled'} title="${title}" style="background:${active ? playerColor : 'var(--surface)'};border:1px solid ${active ? playerColor : 'var(--border)'};color:${active ? 'var(--bg)' : 'var(--text)'};padding:4px 8px;border-radius:4px;cursor:${revealed ? 'pointer' : 'default'};opacity:${revealed ? 1 : 0.6};font-family:'Exo 2',sans-serif;font-size:11px;font-weight:${active ? 700 : 500};display:flex;align-items:center;gap:4px;">
+        const gname = (GERMAN_NAMES && GERMAN_NAMES[m.species]) || ('#' + m.species);
+        const title = `${gname} (Lv${m.level ?? '?'})`;
+        const icon = `<img src="${spriteUrl(m.species)}" style="width:20px;height:20px;image-rendering:pixelated;">`;
+        return `<button onclick="setPiEnemyIdx('${player}',${i})" title="${title}" style="background:${active ? playerColor : 'var(--surface)'};border:1px solid ${active ? playerColor : 'var(--border)'};color:${active ? 'var(--bg)' : 'var(--text)'};padding:4px 8px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:11px;font-weight:${active ? 700 : 500};display:flex;align-items:center;gap:4px;">
           ${icon}${i + 1}
         </button>`;
       }).join('');
