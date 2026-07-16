@@ -1864,6 +1864,13 @@ function _renderSoullinkRow(link, linkIdx, slots, isFullyDead) {
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
         <div style="font-family:'Press Start 2P',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;flex-shrink:0;">#${linkIdx + 1}${isFullyDead ? ' 💀' : ''}</div>
         ${routeLabel ? `<div style="font-size:11px;color:var(--accent3);flex-shrink:0;">📍 ${routeLabel}</div>` : ''}
+        ${isFullyDead
+          ? `<button onclick="reviveLink(${linkIdx})" title="Tot-Markierung entfernen (Fehleingabe)"
+              style="margin-left:auto;background:transparent;border:1px solid var(--border);color:var(--accent3);padding:0 8px;height:24px;border-radius:4px;cursor:pointer;font-size:11px;">↺</button>`
+          : `<button onclick="markLinkDead(${linkIdx})" title="Link manuell als gefallen markieren (z.B. Spieler ohne Tracker)"
+              style="margin-left:auto;background:transparent;border:1px solid var(--border);color:var(--muted);padding:0 8px;height:24px;border-radius:4px;cursor:pointer;font-size:12px;"
+              onmouseover="this.style.borderColor='var(--dead)';this.style.color='var(--dead)';"
+              onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)';">💀</button>`}
         <button onclick="deleteSoullink(${linkIdx})" title="Diesen Soullink löschen"
           style="margin-left:auto;background:transparent;border:1px solid var(--border);color:var(--dead);width:24px;height:24px;border-radius:4px;cursor:pointer;font-size:14px;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center;transition:background 0.15s,border-color 0.15s;"
           onmouseover="this.style.background='var(--dead)';this.style.color='#fff';this.style.borderColor='var(--dead)';"
@@ -1886,6 +1893,42 @@ function deleteSoullink(linkIdx) {
   db.ref(currentRunId + '/links').set(data.links).catch(()=>{});
   console.log('[Trio] Link #' + (linkIdx + 1) + ' gelöscht:', desc);
   renderLive();
+}
+
+// ── Link manuell als gefallen markieren / wiederbeleben ──
+// Für Spieler OHNE Tracker: Die Auto-Death-Cascade erkennt nur Tode über
+// PIDs im Live-Team. Stirbt das Mon eines manuell spielenden Partners, wird
+// der Link hiermit von Hand gefällt (Soullink-Regel: einer tot = alle tot).
+function markLinkDead(linkIdx) {
+  const link = (data.links || [])[linkIdx];
+  if (!link) return;
+  const desc = PLAYERS.map(p => link[p+'_name'] || '?').join(' · ');
+  if (!confirm(`Link #${linkIdx + 1} als gefallen markieren?\n\n${link.route || ''} — ${desc}\n\n(Soullink: alle Partner gelten als tot.)`)) return;
+  link.dead = Object.fromEntries(PLAYERS.map(p => [p, true]));
+  const upd = { [`links/${linkIdx}/dead`]: link.dead };
+  // Route abhaken wie bei der Auto-Cascade ("Link gefallen")
+  if (link.route) {
+    const routeIdx = (data.routes || []).findIndex(r => r.name === link.route);
+    if (routeIdx !== -1 && !data.routes[routeIdx].done) {
+      data.routes[routeIdx].done = true;
+      upd[`routes/${routeIdx}/done`] = true;
+    }
+  }
+  db.ref(currentRunId).update(upd).catch(()=>{});
+  console.log('[Trio] Link #' + (linkIdx + 1) + ' manuell gefällt:', desc);
+  render();
+}
+function reviveLink(linkIdx) {
+  const link = (data.links || [])[linkIdx];
+  if (!link) return;
+  if (!confirm(`Link #${linkIdx + 1} wiederbeleben? (Tot-Markierung aller Partner entfernen — nur bei Fehleingabe.)`)) return;
+  link.dead = Object.fromEntries(PLAYERS.map(p => [p, false]));
+  link.killer = null;
+  db.ref(currentRunId).update({
+    [`links/${linkIdx}/dead`]: link.dead,
+    [`links/${linkIdx}/killer`]: null,
+  }).catch(()=>{});
+  render();
 }
 
 function _renderLinkSlotInline(slot, link) {
@@ -3048,8 +3091,9 @@ function autoCreateLink(encIdx) {
     PLAYERS.every(p => link[p+'_id'] == enc[p+'_id'])
   );
   if (alreadyExists) return;
-  // Neuen Link erstellen
-  const newLink = { dead:{linus:false,jonah:false,jannik:false}, note:'', killer:null };
+  // Neuen Link erstellen — route mitgeben (Anzeige, Löschdialog und
+  // "Route abhaken wenn Link fällt" brauchen sie; wie der Auto-Link).
+  const newLink = { dead:{linus:false,jonah:false,jannik:false}, note:'', killer:null, route: enc.route };
   PLAYERS.forEach(p => {
     newLink[p+'_id'] = enc[p+'_id'];
     newLink[p+'_name'] = enc[p+'_name'];
