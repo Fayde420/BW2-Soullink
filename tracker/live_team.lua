@@ -331,48 +331,25 @@ local function readEnemyTeam()
 end
 
 -- ── Aktiver Gegner: PID der vorne stehenden Position ──
--- Quelle: NDS-Ironmon-Tracker (Brian0255), Feld `enemyBattleMonPID` — eine
--- FESTE Adresse in Gen 5 (kein wandernder Heap!), die die PID des gerade
--- aktiven Gegner-Battlers hält und bei Wechsel/Faint mitzieht.
--- US-Schwarz2 = 0x296930; unsere DE-Version = -0x100 = 0x296830 (derselbe
--- Versatz wie enemyBase/Map/Orden, gegen unsere bekannten Adressen bestätigt).
+-- Feld `enemyBattleMonPID` (Konzept aus dem NDS-Ironmon-Tracker, Brian0255):
+-- eine FESTE Adresse in Gen 5, die die PID des gerade vorne stehenden Gegners
+-- hält und bei Wechsel/Faint mitzieht.
+-- DE-Schwarz2-Adresse via Live-Diagnose eindeutig ermittelt: 0x2967D4 (sprang
+-- beim Gegner-Wechsel exakt auf das reingewechselte Mon; die naive US-0x100-
+-- Rechnung 0x296830 traf dagegen den Lead/Slot 1 und blieb stehen).
 --
--- Self-validating: wir lesen Kandidaten-Adressen und nehmen die, deren u32
--- EXAKT einer PID des aktuellen Gegner-Trupps entspricht. PIDs sind 32-bit →
--- ein Zufallstreffer ist praktisch ausgeschlossen (der fundamentale Unterschied
--- zum früheren HP-Scan, der an kleinen HP-Werten scheiterte). Kein Treffer →
--- Fallback auf Slot 1 (kein Regress). Trefferadresse wird pro Kampf gecacht.
-local ENEMY_ACTIVE_PID_DE = 0x296830   -- DE Schwarz 2 (US 0x296930 - 0x100)
-local _activePidAddr = nil
+-- Exakt gelesen, KEIN Fenster-Scan und KEIN Adress-Cache: ein Fenster/Cache
+-- klammert sich sonst an die Lead-Adresse (Slot 1) und folgt dem Wechsel nie
+-- (genau der frühere Bug). Gegen die Trupp-PIDs validiert (32-bit → keine
+-- Fehltreffer). Kein Treffer (z.B. Kampf-Intro, bevor die Position gefüllt ist)
+-- -> nil -> Fallback Slot 1 (= der Lead, dann ohnehin korrekt).
+local ENEMY_ACTIVE_PID_DE = 0x2967D4   -- DE Schwarz 2, per Diagnose bestätigt
 
 local function activeEnemyPid(et)
-  local valid = {}
-  for _, m in ipairs(et) do if m.pid then valid[m.pid] = true end end
-  local function pidAt(a)
-    local pid = memory.read_u32_le(a)
-    if pid ~= 0 and valid[pid] then return pid end
-    return nil
-  end
-  -- gecachte Adresse zuerst (folgt Wechsel: gleiche Adresse, neuer PID-Wert)
-  if _activePidAddr then
-    local pid = pidAt(_activePidAddr)
-    if pid then return pid end
-  end
-  -- exakte Kandidaten (DE, US) bevorzugt, dann kleines Fenster für den Fall,
-  -- dass der DE-Versatz in dieser Region leicht abweicht.
-  local tried = {}
-  local function scan(a)
-    if tried[a] then return nil end
-    tried[a] = true
-    local pid = pidAt(a)
-    if pid then _activePidAddr = a; return pid end
-    return nil
-  end
-  local p = scan(ENEMY_ACTIVE_PID_DE) or scan(ENEMY_ACTIVE_PID_DE + 0x100)
-  if p then return p end
-  for off = 4, 0xB0, 4 do
-    p = scan(ENEMY_ACTIVE_PID_DE + off) or scan(ENEMY_ACTIVE_PID_DE - off)
-    if p then return p end
+  local pid = memory.read_u32_le(ENEMY_ACTIVE_PID_DE)
+  if pid == 0 then return nil end
+  for _, m in ipairs(et) do
+    if m.pid == pid then return pid end
   end
   return nil
 end
@@ -413,7 +390,6 @@ local function refreshEnemy()
     cEnemyTeam, cEnemy = {}, nil
     cBattleType, lastBattleType = nil, nil
     lastEnemyCount = 0
-    _activePidAddr = nil   -- Kampf vorbei: Aktiv-PID-Cache leeren
     return
   end
   cEnemyTeam = et
