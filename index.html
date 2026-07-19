@@ -2750,19 +2750,22 @@ async function refreshPiEnemy() {
   const learnBox = document.getElementById('pi-learnset-box');
   const slotsEl  = document.getElementById('pi-enemy-slots');
 
-  // Slot-Picker rendern wenn mehrere Gegner-Slots. ALLE Slots sind anklickbar
-  // (kein Auto-Wechsel per RAM mehr — das war unzuverlässig). Bei Trainern mit
-  // mehreren Pokémon klickst du die Slots einfach selbst durch.
+  // Slot-Picker rendern wenn mehrere Gegner-Slots. Ungesehene Slots zeigen "?"
+  // (kein Spoiler), sind aber ANKLICKBAR — Klick deckt auf, falls das
+  // Auto-Umschalten mal nicht greift.
   if (slotsEl) {
     if (enemyTeam.length > 1) {
       slotsEl.style.display = 'flex';
       const playerColor = ((LIVE_PLAYERS.find(p => p.slot === player)) || {}).color || 'var(--accent)';
       slotsEl.innerHTML = enemyTeam.map((m, i) => {
         const active = i === _piEnemyIdx[player];
-        const gname = (GERMAN_NAMES && GERMAN_NAMES[m.species]) || ('#' + m.species);
-        const title = `${gname} (Lv${m.level ?? '?'})`;
-        const icon = `<img src="${spriteUrl(m.species)}" style="width:20px;height:20px;image-rendering:pixelated;">`;
-        return `<button onclick="setPiEnemyIdx('${player}',${i})" title="${title}" style="background:${active ? playerColor : 'var(--surface)'};border:1px solid ${active ? playerColor : 'var(--border)'};color:${active ? 'var(--bg)' : 'var(--text)'};padding:4px 8px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:11px;font-weight:${active ? 700 : 500};display:flex;align-items:center;gap:4px;">
+        const revealed = _piEnemyRevealed[player].has(i);
+        const gname = revealed ? ((GERMAN_NAMES && GERMAN_NAMES[m.species]) || ('#' + m.species)) : '???';
+        const title = revealed ? `${gname} (Lv${m.level ?? '?'})` : 'Noch nicht gesehen — klicken zum Aufdecken';
+        const icon = revealed
+          ? `<img src="${spriteUrl(m.species)}" style="width:20px;height:20px;image-rendering:pixelated;">`
+          : `<span style="display:inline-flex;width:20px;height:20px;align-items:center;justify-content:center;background:var(--surface2);border:1px solid var(--border);border-radius:3px;font-weight:700;font-size:13px;color:var(--muted);">?</span>`;
+        return `<button onclick="setPiEnemyIdx('${player}',${i})" title="${title}" style="background:${active ? playerColor : 'var(--surface)'};border:1px solid ${active ? playerColor : 'var(--border)'};color:${active ? 'var(--bg)' : 'var(--text)'};padding:4px 8px;border-radius:4px;cursor:pointer;opacity:${revealed ? 1 : 0.75};font-family:'Exo 2',sans-serif;font-size:11px;font-weight:${active ? 700 : 500};display:flex;align-items:center;gap:4px;">
           ${icon}${i + 1}
         </button>`;
       }).join('');
