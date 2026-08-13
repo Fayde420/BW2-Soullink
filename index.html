@@ -1329,6 +1329,7 @@ function render() {
     watchCatchTrio();
     watchDeathsTrio();
     autoTickBadgesTrio();
+    persistNicknames();
   }
   // Gegner-Anzeige im Pokémon-Tab (falls Sub-Tab aktiv)
   if (typeof refreshPiEnemy === 'function') refreshPiEnemy();
@@ -1683,6 +1684,35 @@ function autoTickBadgesTrio() {
   }
 }
 
+// ── Spitznamen dauerhaft sichern ──
+// Spitznamen stehen NUR im RAM (autoTeam_*). Sobald ein neues Spiel laeuft,
+// werden die Live-Daten ueberschrieben — dann zeigte ein alter Run wieder den
+// Art-Namen statt "Bello". Darum: solange der Spitzname live sichtbar ist,
+// fest in den Link schreiben. Ab da haengt die Anzeige nicht mehr am RAM.
+// Partielles update() (nie save()), sonst blockiert isSaving den Listener.
+function persistNicknames() {
+  const links = data.links || [];
+  if (!links.length) return;
+  const updates = {};
+  links.forEach((link, i) => {
+    if (!link) return;
+    for (const p of PLAYERS) {
+      const pid = link[p + '_pid'];
+      const at  = data['autoTeam_' + p];
+      if (!pid || !at) continue;
+      const m = (at.team || []).find(x => x && x.pid === pid)
+             || (at.box  || []).find(x => x && x.pid === pid);
+      if (!m || !m.nick) continue;           // kein Live-Mon / kein Spitzname
+      if (link[p + '_nick'] === m.nick) continue;
+      link[p + '_nick'] = m.nick;
+      updates[`links/${i}/${p}_nick`] = m.nick;
+    }
+  });
+  if (Object.keys(updates).length) {
+    db.ref(currentRunId).update(updates).catch(()=>{});
+  }
+}
+
 function watchDeathsTrio() {
   if (!data.links || !data.links.length) return;
   const updates = {};
@@ -2005,13 +2035,16 @@ function _renderLinkSlotInline(slot, link, linkIdx) {
   const { p, pokemon, location, slotIdx } = slot;
   const isDead = link.dead && link.dead[p.slot];
   if (!pokemon) {
-    // Kein Live-Mon (manuell eingetragener Spieler ohne Tracker) — trotzdem
-    // anklickbar: Detail wird aus den Link-Daten (Species) aufgebaut.
+    // Kein Live-Mon (manuell eingetragener Spieler ohne Tracker, oder alter
+    // Run ohne Live-Daten) — trotzdem anklickbar: Detail kommt aus den
+    // Link-Daten. Gespeicherter Spitzname schlaegt den Art-Namen.
     const species = link[p.slot + '_id'];
-    const name = link[p.slot + '_name'] || '?';
+    const spName = link[p.slot + '_name'] || '?';
+    const storedNick = link[p.slot + '_nick'];
+    const name = storedNick || spName;
     const clickable = species != null && species !== '';
     return `
-      <div ${clickable ? `onclick="showLinkDetailFromLink(${linkIdx},'${p.slot}')" title="${p.label} · ${name}"` : ''}
+      <div ${clickable ? `onclick="showLinkDetailFromLink(${linkIdx},'${p.slot}')" title="${p.label} · ${name}${storedNick ? ' · ' + spName : ''}"` : ''}
         style="display:inline-flex;align-items:center;gap:5px;font-size:12px;${isDead ? 'opacity:0.4;' : 'opacity:0.75;'}${clickable ? 'cursor:pointer;padding:2px 6px;border-radius:4px;border:1px solid transparent;' : ''}"
         ${clickable ? `onmouseover="this.style.borderColor='${p.color}';this.style.background='var(--surface)';" onmouseout="this.style.borderColor='transparent';this.style.background='transparent';"` : ''}>
         ${species ? `<img src="${spriteUrl(species)}" style="width:28px;height:28px;image-rendering:pixelated;${isDead ? 'filter:grayscale(1);' : ''}">` : ''}
@@ -2025,13 +2058,16 @@ function _renderLinkSlotInline(slot, link, linkIdx) {
   const dead = fainted || isDead;
   const species = pokemon.species;
   const gname = (GERMAN_NAMES && GERMAN_NAMES[species]) || pokemon.nick || ('#' + species);
-  const nick = pokemon.nick || gname;
+  // Live-Spitzname zuerst, dann der im Link gesicherte (falls das RAM ihn
+  // gerade nicht liefert), sonst der Art-Name.
+  const savedNick = link[p.slot + '_nick'];
+  const nick = pokemon.nick || savedNick || gname;
   const ratio = hasHP ? Math.max(0, Math.min(1, cur / max)) : 1;
   const hpColor = ratio > 0.5 ? '#a5d6a7' : ratio > 0.2 ? '#ffd54f' : '#ef5350';
   return `
     <div onclick="showLinkDetail('${p.slot}','${location}',${slotIdx})" title="${p.label} · ${nick} · Lv${pokemon.level ?? '?'}${hasHP ? ` · ${cur}/${max} KP` : ''}" style="display:inline-flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;padding:2px 6px;border-radius:4px;border:1px solid transparent;transition:border-color 0.15s,background 0.15s;${dead ? 'opacity:0.5;' : ''}" onmouseover="this.style.borderColor='${p.color}';this.style.background='var(--surface)';" onmouseout="this.style.borderColor='transparent';this.style.background='transparent';">
       <img src="${spriteUrl(species)}" style="width:28px;height:28px;image-rendering:pixelated;${dead ? 'filter:grayscale(1);' : ''}">
-      <span style="color:${p.color};font-weight:700;${pokemon.nick ? '' : 'font-style:italic;'}">${nick}</span>
+      <span style="color:${p.color};font-weight:700;${(pokemon.nick || savedNick) ? '' : 'font-style:italic;'}">${nick}</span>
       ${hasHP ? `<span style="font-family:'Press Start 2P',monospace;font-size:8px;color:${hpColor};">${cur}/${max}</span>` : ''}
     </div>`;
 }
@@ -2212,8 +2248,11 @@ function showLinkDetailFromLink(linkIdx, playerSlot) {
   if (at && pid) m = (at.team || []).find(x => x.pid === pid) || (at.box || []).find(x => x.pid === pid);
   if (!m) m = { species: Number(species), nick: link[playerSlot + '_nick'] || '' };
   const playerLabel = (LIVE_PLAYERS.find(p => p.slot === playerSlot) || {}).label || playerSlot;
+  const spName = link[playerSlot + '_name'] || '?';
+  const savedNick = link[playerSlot + '_nick'];
   document.getElementById('link-detail-slot').textContent =
-    playerLabel + ' · ' + (link[playerSlot + '_name'] || '?') + (m.curHP == null ? ' (manuell)' : '');
+    playerLabel + ' · ' + (savedNick ? savedNick + ' (' + spName + ')' : spName)
+    + (m.curHP == null ? ' (manuell)' : '');
   _renderLinkDetailBody(m, playerSlot);
   document.getElementById('link-detail-modal').style.display = 'flex';
 }
