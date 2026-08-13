@@ -1296,6 +1296,9 @@ const GYMS = [
   { num:6, name:'Panaero City', leader:'Géraldine', type:'Flug', lvl:'39/37', badge:'Jetorden' },
   { num:7, name:'Twindrake City', leader:'Lysander', type:'Drache', lvl:'48/46', badge:'Legendenorden' },
   { num:8, name:'Abidaya City', leader:'Benson', type:'Wasser', lvl:'51/49', badge:'Wellenorden' },
+  // Endgame — keine Orden, daher eigene Überschrift statt "GYM N".
+  { num:9,  name:'Liga',     leader:'Top Vier', type:'', lvl:'58', badge:'', label:'LIGA' },
+  { num:10, name:'Champion', leader:'',         type:'', lvl:'59', badge:'', label:'CHAMPION' },
 ];
 
 // ── RENDER FUNCTIONS ──
@@ -3331,11 +3334,11 @@ function renderGyms() {
   const state = data.gymState || {};
   grid.innerHTML = GYMS.map((g, i) => `
     <div class="gym-card">
-      <div class="gym-number">GYM ${g.num}</div>
+      <div class="gym-number">${g.label || ('GYM ' + g.num)}</div>
       <div class="gym-name">${g.name}</div>
-      <div class="gym-leader">${g.leader} · ${g.type}</div>
+      ${(g.leader || g.type) ? `<div class="gym-leader">${[g.leader, g.type].filter(Boolean).join(' · ')}</div>` : ''}
       <div class="gym-lvlcap">Lv. ${g.lvl}</div>
-      <div class="gym-badge">${g.badge}</div>
+      ${g.badge ? `<div class="gym-badge">${g.badge}</div>` : ''}
       <div class="gym-check">
         <input type="checkbox" id="gym-${i}" ${state[i]?'checked':''} onchange="toggleGym(${i})">
         <label for="gym-${i}">✓ Besiegt</label>
