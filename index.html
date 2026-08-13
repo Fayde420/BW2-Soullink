@@ -1321,11 +1321,13 @@ function renderFolderSettings() {
   const f = _selectedFolder && _folders[_selectedFolder];
   if (!f) { box.innerHTML = ''; return; }
   const fp = f.players || {};
-  const inputs = LIVE_PLAYERS.map(p => `
+  // Neutrale Beschriftung ("Spieler 1/2/3") — der Ordner kann für eine
+  // beliebige Gruppe stehen, nicht nur für die Standardnamen.
+  const inputs = LIVE_PLAYERS.map((p, i) => `
     <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:120px;">
-      <label style="font-size:10px;color:var(--muted);">${PLAYER_LABELS[p.slot]}</label>
+      <label style="font-size:10px;color:var(--muted);">Spieler ${i + 1}</label>
       <input type="text" value="${((fp[p.slot] && fp[p.slot].label) || '').replace(/"/g,'&quot;')}"
-        placeholder="${PLAYER_LABELS[p.slot]}"
+        placeholder="Spieler ${i + 1}"
         onchange="setFolderPlayer('${_selectedFolder}','${p.slot}',this.value)"
         style="background:var(--surface2);border:1px solid ${p.color}55;color:var(--text);padding:6px 9px;border-radius:4px;font-family:'Exo 2',sans-serif;font-size:12px;width:100%;">
     </div>`).join('');
