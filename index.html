@@ -752,21 +752,21 @@ window.addEventListener('load', () => {
   <p id="run-subtitle">Pokémon Schwarz 2 &nbsp;·&nbsp; Linus · Jonah · Jannik</p>
   <div style="position:absolute;right:24px;top:50%;transform:translateY(-50%);display:flex;gap:20px;align-items:center;">
     <div style="text-align:center;">
-      <div style="font-size:9px;font-family:'Press Start 2P',monospace;color:var(--linus);letter-spacing:1px;margin-bottom:4px;">Linus</div>
+      <div style="font-size:9px;font-family:'Press Start 2P',monospace;color:var(--linus);letter-spacing:1px;margin-bottom:4px;" id="hdr-label-linus">Linus</div>
       <div style="display:flex;align-items:center;gap:5px;">
         <span style="font-size:13px;">💀</span>
         <span id="header-count-linus" style="font-family:'Press Start 2P',monospace;font-size:16px;color:var(--linus);text-shadow:0 0 10px rgba(79,195,247,0.4);">0</span>
       </div>
     </div>
     <div style="text-align:center;">
-      <div style="font-size:9px;font-family:'Press Start 2P',monospace;color:var(--jonah);letter-spacing:1px;margin-bottom:4px;">Jonah</div>
+      <div style="font-size:9px;font-family:'Press Start 2P',monospace;color:var(--jonah);letter-spacing:1px;margin-bottom:4px;" id="hdr-label-jonah">Jonah</div>
       <div style="display:flex;align-items:center;gap:5px;">
         <span style="font-size:13px;">💀</span>
         <span id="header-count-jonah" style="font-family:'Press Start 2P',monospace;font-size:16px;color:var(--jonah);text-shadow:0 0 10px rgba(240,98,146,0.4);">0</span>
       </div>
     </div>
     <div style="text-align:center;">
-      <div style="font-size:9px;font-family:'Press Start 2P',monospace;color:var(--jannik);letter-spacing:1px;margin-bottom:4px;">Jannik</div>
+      <div style="font-size:9px;font-family:'Press Start 2P',monospace;color:var(--jannik);letter-spacing:1px;margin-bottom:4px;" id="hdr-label-jannik">Jannik</div>
       <div style="display:flex;align-items:center;gap:5px;">
         <span style="font-size:13px;">💀</span>
         <span id="header-count-jannik" style="font-family:'Press Start 2P',monospace;font-size:16px;color:var(--jannik);text-shadow:0 0 10px rgba(165,214,167,0.4);">0</span>
@@ -886,9 +886,9 @@ window.addEventListener('load', () => {
       <thead>
         <tr>
           <th>Route / Ort</th>
-          <th>Linus</th>
-          <th>Jonah</th>
-          <th>Jannik</th>
+          <th id="th-linus">Linus</th>
+          <th id="th-jonah">Jonah</th>
+          <th id="th-jannik">Jannik</th>
           <th>Status</th>
           <th>Notiz</th>
         </tr>
@@ -933,11 +933,11 @@ window.addEventListener('load', () => {
       <button class="pi-subtab active" data-mode="search" onclick="showPiMode('search')"
         style="background:var(--accent);border:1px solid var(--accent);color:var(--bg);padding:6px 12px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:12px;font-weight:700;letter-spacing:0.5px;transition:all 0.2s;">🔍 Suche</button>
       <button class="pi-subtab" data-mode="enemy_linus" onclick="showPiMode('enemy_linus')"
-        style="background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:12px;font-weight:600;letter-spacing:0.5px;transition:all 0.2s;">⚔ Linus</button>
+        style="background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:12px;font-weight:600;letter-spacing:0.5px;transition:all 0.2s;" id="subtab-linus">⚔ Linus</button>
       <button class="pi-subtab" data-mode="enemy_jonah" onclick="showPiMode('enemy_jonah')"
-        style="background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:12px;font-weight:600;letter-spacing:0.5px;transition:all 0.2s;">⚔ Jonah</button>
+        style="background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:12px;font-weight:600;letter-spacing:0.5px;transition:all 0.2s;" id="subtab-jonah">⚔ Jonah</button>
       <button class="pi-subtab" data-mode="enemy_jannik" onclick="showPiMode('enemy_jannik')"
-        style="background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:12px;font-weight:600;letter-spacing:0.5px;transition:all 0.2s;">⚔ Jannik</button>
+        style="background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:6px 12px;border-radius:4px;cursor:pointer;font-family:'Exo 2',sans-serif;font-size:12px;font-weight:600;letter-spacing:0.5px;transition:all 0.2s;" id="subtab-jannik">⚔ Jannik</button>
     </div>
     <!-- Custom Bild (klickbar für Vollbild) -->
     <div style="text-align:center;margin-bottom:20px;">
@@ -1048,11 +1048,14 @@ window.addEventListener('load', () => {
 
 <!-- ══════════════════════ RUN ÜBERSICHT MODAL ══════════════════════ -->
 <div id="run-overview-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:5000;align-items:center;justify-content:center;">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;width:min(500px,90vw);max-height:80vh;overflow-y:auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
-      <div style="font-family:'Press Start 2P',monospace;font-size:10px;color:var(--accent);letter-spacing:1px;">Run Übersicht</div>
-      <button onclick="hideRunOverview()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;">×</button>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;width:min(720px,94vw);max-height:85vh;overflow-y:auto;">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
+      <div style="font-family:'Press Start 2P',monospace;font-size:10px;color:var(--accent);letter-spacing:1px;white-space:nowrap;">Run Übersicht</div>
+      <!-- Ordner-Leiste: rechts neben dem Titel, waagerecht scrollbar, Drop-Ziele -->
+      <div id="folder-bar" style="display:flex;gap:6px;flex:1;overflow-x:auto;padding:2px 0;"></div>
+      <button onclick="hideRunOverview()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;flex-shrink:0;">×</button>
     </div>
+    <div id="folder-settings"></div>
     <div id="run-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;"></div>
     <div style="display:flex;gap:8px;">
       <input id="new-run-name" type="text" placeholder="Run-Name (z.B. Schwarz 2 Run 1)" 
@@ -1093,6 +1096,7 @@ function switchToRun(runId) {
   localStorage.setItem('soullink_current_run', runId);
   dataRef = db.ref(currentRunId);
   subscribeToRun();
+  if (typeof applyPlayerLabels === 'function') applyPlayerLabels();
   hideRunOverview();
   // Aktiven Run global publishen: andere Frontends + Bridges folgen automatisch
   db.ref('_active_run').set(runId).catch(()=>{});
@@ -1127,13 +1131,8 @@ function subscribeToRun() {
     } else {
       data = { links:[], encounters:[], routes:initRoutes(), gymState:{} };
     }
-    // Update subtitle
-    runsRef.once('value', snap => {
-      const runs = snap.val() || {};
-      const run = runs[currentRunId];
-      const subtitle = document.getElementById('run-subtitle');
-      if (subtitle) subtitle.textContent = run ? run.name : 'Pokémon Schwarz 2 · Linus · Jonah · Jannik';
-    });
+    // Untertitel + Spielernamen (aus dem Ordner des Runs) auffrischen
+    applyPlayerLabels();
     render();
     document.getElementById('loading-overlay').style.display = 'none';
   });
@@ -1143,7 +1142,9 @@ function createRun() {
   const name = document.getElementById('new-run-name').value.trim();
   if (!name) return;
   const runId = 'run_' + Date.now();
+  // Im gewählten Ordner anlegen -> der Run übernimmt dessen Spielernamen.
   const meta = { name, created: Date.now() };
+  if (_selectedFolder && _selectedFolder !== '__all__') meta.folder = _selectedFolder;
   runsRef.child(runId).set(meta);
   db.ref(runId).set({ links:[], encounters:[], routes:initRoutes(), gymState:{} });
   document.getElementById('new-run-name').value = '';
@@ -1153,35 +1154,227 @@ function createRun() {
 
 function showRunOverview() {
   document.getElementById('run-overview-modal').style.display = 'flex';
-  renderRunList();
+  renderFolderBar(); renderFolderSettings(); renderRunList();
 }
 function hideRunOverview() {
   document.getElementById('run-overview-modal').style.display = 'none';
 }
 
+// ══════════════════════════════════════════════════════════
+// ORDNER
+// Runs lassen sich in Ordner einsortieren (Drag & Drop auf die
+// Ordner-Leiste). Ein Ordner kann eigene Spielernamen festlegen —
+// jeder Run darin zeigt dann automatisch diese Namen.
+//   /__folders__/{id} = { name, created, players:{ slot:{label} } }
+//   /__runs__/{runId}/folder = <folderId|null>
+// ══════════════════════════════════════════════════════════
+const foldersRef = db.ref('__folders__');
+let _folders = {};
+let _runsMeta = {};
+// Filter-Zustand: '__all__' = alle Runs, null = Runs ohne Ordner, sonst Ordner-ID
+let _selectedFolder = '__all__';
+const _folderDragState = { runId: null };
+
+foldersRef.on('value', snap => {
+  _folders = snap.val() || {};
+  applyPlayerLabels();
+  renderFolderBar(); renderFolderSettings(); renderRunList();
+});
+runsRef.on('value', snap => {
+  _runsMeta = snap.val() || {};
+  applyPlayerLabels();
+  renderFolderBar(); renderRunList();
+});
+
+function currentFolderId() {
+  const m = _runsMeta[currentRunId];
+  return (m && m.folder) || null;
+}
+// Spielernamen des Ordners, in dem der AKTIVE Run liegt (sonst Standard).
+function folderPlayerLabels() {
+  const f = _folders[currentFolderId()];
+  return (f && f.players) || {};
+}
+// LIVE_PLAYERS werden in-place umbenannt -> alle bestehenden Render-Stellen
+// ziehen automatisch nach, ohne dass sie angefasst werden muessen.
+function applyPlayerLabels() {
+  if (typeof LIVE_PLAYERS === 'undefined') return;
+  const fp = folderPlayerLabels();
+  LIVE_PLAYERS.forEach(p => {
+    p.label = (fp[p.slot] && fp[p.slot].label) || PLAYER_LABELS[p.slot];
+    const h  = document.getElementById('hdr-label-' + p.slot); if (h)  h.textContent  = p.label;
+    const th = document.getElementById('th-' + p.slot);        if (th) th.textContent = p.label;
+    const st = document.getElementById('subtab-' + p.slot);    if (st) st.textContent = '⚔ ' + p.label;
+  });
+  const sub = document.getElementById('run-subtitle');
+  const meta = _runsMeta[currentRunId];
+  if (sub) {
+    sub.textContent = meta && meta.name
+      ? meta.name
+      : 'Pokémon Schwarz 2 · ' + LIVE_PLAYERS.map(p => p.label).join(' · ');
+  }
+}
+
+function createFolder() {
+  const name = prompt('Name des Ordners:');
+  if (name === null) return;
+  const t = name.trim();
+  if (!t) return;
+  const id = 'f_' + Date.now();
+  foldersRef.child(id).set({ name: t, created: Date.now() }).catch(()=>{});
+  _selectedFolder = id;
+}
+function selectFolder(id) {
+  _selectedFolder = id;
+  renderFolderBar(); renderFolderSettings(); renderRunList();
+}
+function renameFolder(id) {
+  const f = _folders[id]; if (!f) return;
+  const name = prompt('Neuer Ordnername:', f.name || '');
+  if (name === null) return;
+  const t = name.trim(); if (!t) return;
+  foldersRef.child(id).update({ name: t }).catch(()=>{});
+}
+function deleteFolder(id) {
+  const f = _folders[id]; if (!f) return;
+  const inside = Object.entries(_runsMeta).filter(([, m]) => m && m.folder === id);
+  if (!confirm(`Ordner "${f.name}" löschen?${inside.length ? `\n\nDie ${inside.length} Run(s) darin bleiben erhalten und liegen danach wieder ohne Ordner.` : ''}`)) return;
+  const upd = {};
+  inside.forEach(([rid]) => { upd[`${rid}/folder`] = null; });
+  if (Object.keys(upd).length) runsRef.update(upd).catch(()=>{});
+  foldersRef.child(id).remove().catch(()=>{});
+  if (_selectedFolder === id) _selectedFolder = null;
+}
+// Spielernamen eines Ordners setzen (leer = Standardname).
+function setFolderPlayer(folderId, slot, value) {
+  const t = (value || '').trim();
+  foldersRef.child(folderId).child('players').child(slot).child('label')
+    .set(t || null).catch(()=>{});
+}
+
+// ── Drag & Drop: Run auf einen Ordner ziehen ──
+function onRunDragStart(ev, runId) {
+  _folderDragState.runId = runId;
+  try { ev.dataTransfer.setData('text/plain', runId); } catch (e) {}
+  ev.dataTransfer.effectAllowed = 'move';
+}
+function onFolderDragOver(ev, el) {
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  if (el) { el.style.borderColor = 'var(--accent)'; el.style.background = 'rgba(79,195,247,0.15)'; }
+}
+function onFolderDragLeave(ev, el) {
+  if (el) { el.style.borderColor = ''; el.style.background = ''; }
+  renderFolderBar();
+}
+function onFolderDrop(ev, folderId, el) {
+  ev.preventDefault();
+  let runId = '';
+  try { runId = ev.dataTransfer.getData('text/plain'); } catch (e) {}
+  runId = runId || _folderDragState.runId;
+  _folderDragState.runId = null;
+  if (el) { el.style.borderColor = ''; el.style.background = ''; }
+  if (!runId || !_runsMeta[runId]) { renderFolderBar(); return; }
+  runsRef.child(runId).update({ folder: folderId }).catch(()=>{});
+}
+
+function renderFolderBar() {
+  const bar = document.getElementById('folder-bar');
+  if (!bar) return;
+  const countIn = id => id === '__all__'
+    ? Object.keys(_runsMeta).length
+    : Object.values(_runsMeta).filter(m => m && (m.folder || null) === id).length;
+  // id: '__all__' (alle) | null (ohne Ordner) | Ordner-ID. "Alle" ist kein Drop-Ziel.
+  const chip = (id, label, icon) => {
+    const active = _selectedFolder === id;
+    const isDrop = id !== '__all__';
+    const arg = id === '__all__' ? `'__all__'` : (id === null ? 'null' : `'${id}'`);
+    return `
+      <div onclick="selectFolder(${arg})"
+        ${isDrop ? `ondragover="onFolderDragOver(event,this)" ondragleave="onFolderDragLeave(event,this)" ondrop="onFolderDrop(event,${id === null ? 'null' : `'${id}'`},this)"` : ''}
+        title="${isDrop ? 'Klicken zum Filtern · Run hierher ziehen' : 'Alle Runs zeigen'}"
+        style="display:flex;align-items:center;gap:6px;white-space:nowrap;cursor:pointer;user-select:none;
+               border:1px solid ${active ? 'var(--accent)' : 'var(--border)'};
+               background:${active ? 'rgba(79,195,247,0.12)' : 'var(--surface2)'};
+               color:${active ? 'var(--accent)' : 'var(--text)'};
+               padding:5px 10px;border-radius:999px;font-size:12px;transition:border-color .15s,background .15s;">
+        <span>${icon}</span><span>${label}</span>
+        <span style="color:var(--muted);font-size:10px;">${countIn(id)}</span>
+      </div>`;
+  };
+  const folderChips = Object.entries(_folders)
+    .sort((a,b) => (a[1].created||0)-(b[1].created||0))
+    .map(([id, f]) => chip(id, f.name || 'Ordner', '📁')).join('');
+  bar.innerHTML =
+    chip('__all__', 'Alle', '🗂') +
+    chip(null, 'Ohne Ordner', '📄') +
+    folderChips +
+    `<div onclick="createFolder()" title="Neuen Ordner anlegen"
+       style="white-space:nowrap;cursor:pointer;user-select:none;border:1px dashed var(--border);
+              color:var(--muted);padding:5px 10px;border-radius:999px;font-size:12px;">+ Ordner</div>`;
+}
+
+// Panel unter der Leiste: Ordner umbenennen/löschen + Spielernamen
+function renderFolderSettings() {
+  const box = document.getElementById('folder-settings');
+  if (!box) return;
+  const f = _selectedFolder && _folders[_selectedFolder];
+  if (!f) { box.innerHTML = ''; return; }
+  const fp = f.players || {};
+  const inputs = LIVE_PLAYERS.map(p => `
+    <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:120px;">
+      <label style="font-size:10px;color:var(--muted);">${PLAYER_LABELS[p.slot]}</label>
+      <input type="text" value="${((fp[p.slot] && fp[p.slot].label) || '').replace(/"/g,'&quot;')}"
+        placeholder="${PLAYER_LABELS[p.slot]}"
+        onchange="setFolderPlayer('${_selectedFolder}','${p.slot}',this.value)"
+        style="background:var(--surface2);border:1px solid ${p.color}55;color:var(--text);padding:6px 9px;border-radius:4px;font-family:'Exo 2',sans-serif;font-size:12px;width:100%;">
+    </div>`).join('');
+  box.innerHTML = `
+    <div style="border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px;background:var(--surface2);">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;">
+        <div style="font-weight:700;font-size:13px;">📁 ${f.name || 'Ordner'}</div>
+        <div style="display:flex;gap:6px;">
+          <button onclick="renameFolder('${_selectedFolder}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;" title="Ordner umbenennen">✏️</button>
+          <button onclick="deleteFolder('${_selectedFolder}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;" title="Ordner löschen">🗑</button>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">
+        Spielernamen für alle Runs in diesem Ordner (leer = Standard):
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">${inputs}</div>
+    </div>`;
+}
+
 function renderRunList() {
-  runsRef.once('value', snap => {
-    const runs = snap.val() || {};
-    const list = document.getElementById('run-list');
-    const entries = Object.entries(runs).sort((a,b) => (b[1].created||0)-(a[1].created||0));
-    if (entries.length === 0) {
-      list.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">Noch keine Runs. Erstelle deinen ersten!</div>';
-      return;
-    }
-    list.innerHTML = entries.map(([id, meta]) => `
-      <div class="run-item ${id===currentRunId?'active-run':''}" onclick="switchToRun('${id}')">
+  const list = document.getElementById('run-list');
+  if (!list) return;
+  const all = Object.entries(_runsMeta);
+  const entries = (_selectedFolder === '__all__'
+      ? all
+      : all.filter(([, m]) => ((m && m.folder) || null) === _selectedFolder)
+    ).sort((a,b) => (b[1].created||0)-(a[1].created||0));
+  if (entries.length === 0) {
+    list.innerHTML = `<div style="color:var(--muted);font-size:13px;text-align:center;padding:16px;">${
+      all.length === 0 ? 'Noch keine Runs. Erstelle deinen ersten!' : 'Keine Runs in dieser Ansicht.'}</div>`;
+    return;
+  }
+  list.innerHTML = entries.map(([id, meta]) => {
+    const fid = (meta && meta.folder) || null;
+    const fname = fid && _folders[fid] ? _folders[fid].name : null;
+    return `
+      <div class="run-item ${id===currentRunId?'active-run':''}" onclick="switchToRun('${id}')"
+        draggable="true" ondragstart="onRunDragStart(event,'${id}')" title="Zum Wechseln klicken · zum Einsortieren auf einen Ordner ziehen">
         <div>
-          <div class="run-item-name">${meta.name}</div>
-          <div class="run-item-meta">${meta.created ? new Date(meta.created).toLocaleDateString('de-DE') : ''}</div>
+          <div class="run-item-name">⠿ ${meta.name}</div>
+          <div class="run-item-meta">${meta.created ? new Date(meta.created).toLocaleDateString('de-DE') : ''}${fname ? ` · 📁 ${fname}` : ''}</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           ${id===currentRunId ? '<span style="font-size:10px;color:var(--accent);font-family:\'Press Start 2P\',monospace;">AKTIV</span>' : ''}
-          <button onclick="event.stopPropagation();renameRun('${id}','${meta.name.replace(/'/g,"\\'")}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px;" title="Umbenennen">✏️</button>
+          <button onclick="event.stopPropagation();renameRun('${id}','${(meta.name||'').replace(/'/g,"\\'")}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:0 4px;" title="Umbenennen">✏️</button>
           <button onclick="event.stopPropagation();deleteRun('${id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:0 4px;" title="Löschen">🗑</button>
         </div>
-      </div>
-    `).join('');
-  });
+      </div>`;
+  }).join('');
 }
 
 function deleteRun(runId) {
