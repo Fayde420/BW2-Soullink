@@ -6,6 +6,18 @@ dem laufenden Spiel.
 
 **Live:** https://fayde420.github.io/BW2-Soullink/  (Passwort erforderlich)
 
+## Schnellstart: Tracker-Starter
+
+Ein Programm für alles — **kein Python nötig**:
+
+**[⬇ BW2-Tracker-Starter.exe herunterladen](https://github.com/Fayde420/BW2-Soullink/releases/latest/download/BW2-Tracker-Starter.exe)**
+
+Modus wählen, ROM wählen, **Starten** — es öffnet BizHawk mit Lua und
+übernimmt die Übertragung selbst. Die Einrichtung steht auf der
+[Release-Seite](https://github.com/Fayde420/BW2-Soullink/releases/latest).
+
+Die Schritte unten brauchst du nur, wenn du es lieber von Hand machst.
+
 ## Mitspielen — Tracker einrichten
 Du brauchst: **BizHawk** (melonDS-Core), dein **BW2-ROM**, **Python 3**.
 
