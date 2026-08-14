@@ -1962,9 +1962,28 @@ function watchDeathsTrio() {
   }
 }
 
-function liveAgeLabel(updatedAt) {
-  if (!updatedAt) return '–';
-  const ageS = Math.round((Date.now() - updatedAt) / 1000);
+// ── Serverzeit ──
+// Die Live-Daten trugen bisher nur 'updatedAt' aus der Lua — das ist die Uhr
+// des SPIEL-PCs. Verglichen wurde sie mit der Uhr des BROWSERS: gehen die
+// beiden auseinander, stand ein laufender Tracker faelschlich auf "offline".
+// Die Bridge schickt jetzt zusaetzlich 'serverAt' (von Firebase gesetzt), und
+// hier korrigieren wir die Browser-Uhr ueber den Server-Offset. Damit ist die
+// Anzeige gegen beide schiefen Uhren immun.
+let _serverTimeOffset = 0;
+db.ref('.info/serverTimeOffset').on('value', s => { _serverTimeOffset = s.val() || 0; });
+function serverNow() { return Date.now() + _serverTimeOffset; }
+// Alter der Live-Daten in Sekunden (null = kein Zeitstempel vorhanden).
+function liveAgeSeconds(at) {
+  if (!at) return null;
+  if (at.serverAt) return Math.max(0, Math.round((serverNow() - at.serverAt) / 1000));
+  // Fallback fuer alte Bridge-Staende ohne serverAt (PC-Uhr vs. Browser-Uhr).
+  if (at.updatedAt) return Math.max(0, Math.round((Date.now() - at.updatedAt) / 1000));
+  return null;
+}
+
+function liveAgeLabel(at) {
+  const ageS = liveAgeSeconds(at);
+  if (ageS == null) return '–';
   if (ageS < 5)   return '<span style="color:#a5d6a7;">live</span>';
   if (ageS < 30)  return `${ageS}s alt`;
   if (ageS < 600) return `<span style="color:#ffd54f;">${ageS}s alt</span>`;
@@ -2074,7 +2093,7 @@ function renderLive() {
       <div style="background:var(--surface);border:1px solid ${p.color}55;border-radius:6px;padding:8px 12px;display:flex;flex-direction:column;gap:5px;">
         <div style="display:flex;justify-content:space-between;align-items:center;">
           <div style="font-family:'Press Start 2P',monospace;font-size:10px;color:${p.color};letter-spacing:1px;">${p.label}</div>
-          <div style="font-size:10px;color:var(--muted);">${liveAgeLabel(at.updatedAt)}</div>
+          <div style="font-size:10px;color:var(--muted);">${liveAgeLabel(at)}</div>
         </div>
         <div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Map: <strong style="color:var(--text);">${mapDisplay}</strong></div>
         ${showBanner ? `
