@@ -19,8 +19,12 @@ Du brauchst: **BizHawk** (melonDS-Core), dein **BW2-ROM**, **Python 3**.
    ```
 3. BizHawk → ROM laden → **Tools → Lua Console** → `live_team.lua` laden.
 4. Bridge starten — jeder Spieler seinen Slot:
-   - `start_linus.bat` / `start_jonah.bat` / `start_jannik.bat`
-     (= `python bridge_trio.py --player linus|jonah|jannik`)
+   - `start_spieler1.bat` / `start_spieler2.bat` / `start_spieler3.bat`
+     (= `python bridge_trio.py --player spieler1|spieler2|spieler3`)
+   - Wer welcher Spieler ist, stellst du auf der Seite ein:
+     Run Übersicht → Ordner wählen → Spielernamen.
+   - Die alten `start_linus.bat` usw. funktionieren weiter und starten
+     denselben Slot.
 5. Diese Seite öffnen (Passwort eingeben) — die Daten erscheinen live.
 
 ## Hinweise
