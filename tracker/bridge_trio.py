@@ -7,11 +7,14 @@
   jeweiligen Spielers.
 
   Aufruf:
-    python bridge_trio.py --player linus
-    python bridge_trio.py --player jonah --run run_1234567890
-    python bridge_trio.py --player jannik --state "D:/anderer/pfad/state.json"
+    python bridge_trio.py --player spieler1
+    python bridge_trio.py --player spieler2 --run run_1234567890
+    python bridge_trio.py --player spieler3 --state "D:/anderer/pfad/state.json"
 
-  Firebase-Pfad:  /{runId}/autoTeam_{player}
+  Wer welcher Spieler ist, wird auf der Website eingestellt (Ordner ->
+  Spielernamen); die Bruecke kennt nur die Nummer.
+
+  Firebase-Pfad:  /{runId}/autoTeam_{slot}
 ═══════════════════════════════════════════════════════════
 """
 from __future__ import annotations
@@ -31,7 +34,20 @@ DEFAULT_STATE = Path(__file__).resolve().parent / "state.json"
 DEFAULT_RUN   = "soullink"        # selbe Default-ID wie im Trio-Frontend
 POLL_INTERVAL = 0.5               # Sekunden
 RUN_CHECK_INTERVAL = 3.0          # Sekunden zwischen aktiv-Run-Polls
-VALID_PLAYERS = ("linus", "jonah", "jannik")
+# Aufrufname -> interner Firebase-Slot.
+# Die Slots heissen aus historischen Gruenden weiter linus/jonah/jannik — daran
+# haengen die Schluessel aller bestehenden Runs (linus_pid, autoTeam_linus, ...).
+# Nach aussen zaehlt nur noch die Spielernummer; die alten Namen bleiben als
+# Aufruf gueltig, damit vorhandene Verknuepfungen weiter funktionieren.
+PLAYER_SLOTS = {
+    "spieler1": "linus",
+    "spieler2": "jonah",
+    "spieler3": "jannik",
+    "linus": "linus",
+    "jonah": "jonah",
+    "jannik": "jannik",
+}
+VALID_PLAYERS = tuple(PLAYER_SLOTS)
 
 # Laufzeit-Zustand
 _current_run_id = DEFAULT_RUN
@@ -70,10 +86,13 @@ def push(state_text: str, player: str, force_run: str | None) -> None:
         fetch_active_run()
     run_id = force_run or _current_run_id
 
+    # Server-Zeitstempel mitschicken: 'updatedAt' aus der Lua ist die Uhr
+    # DIESES PCs. Geht sie falsch, zeigt die Website faelschlich "offline".
+    # {".sv":"timestamp"} laesst Firebase die Zeit selbst setzen.
+    d["serverAt"] = {".sv": "timestamp"}
+    payload = json.dumps(d).encode("utf-8")
     url = f"{FIREBASE_URL}/{run_id}/autoTeam_{player}.json"
-    req = urllib.request.Request(
-        url, data=state_text.encode("utf-8"), method="PUT"
-    )
+    req = urllib.request.Request(url, data=payload, method="PUT")
     req.add_header("Content-Type", "application/json")
     try:
         with urllib.request.urlopen(req, timeout=5) as res:
@@ -94,8 +113,9 @@ def push(state_text: str, player: str, force_run: str | None) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Trio-Soullink Bridge")
     parser.add_argument(
-        "--player", required=True, choices=VALID_PLAYERS,
-        help="Welcher Spieler-Slot diese Bridge bedient."
+        "--player", required=True, choices=VALID_PLAYERS, metavar="SPIELER",
+        help="spieler1, spieler2 oder spieler3 (alte Namen linus/jonah/jannik "
+             "funktionieren weiterhin)."
     )
     parser.add_argument(
         "--run", default=None,
@@ -107,12 +127,12 @@ def main() -> None:
         help=f"Pfad zur state.json. Default: {DEFAULT_STATE}"
     )
     args = parser.parse_args()
-    player = args.player
+    player = PLAYER_SLOTS[args.player]   # Aufrufname -> interner Slot
     state_file: Path = args.state
     force_run: str | None = args.run
 
     print("== AutoTracker-Brücke (Trio) ==")
-    print(f"Spieler:    {player}")
+    print(f"Spieler:    {args.player}  (Slot: {player})")
     print(f"Beobachte:  {state_file}")
     if force_run:
         print(f"Run-ID:     {force_run}  (fixiert via --run)")

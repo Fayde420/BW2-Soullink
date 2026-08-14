@@ -1,5 +1,4 @@
 @echo off
-title Trio-Bridge: JONAH
+rem Alter Name — startet jetzt Spieler 2.
 cd /d "%~dp0"
-python bridge_trio.py --player jonah
-pause
+call "start_spieler2.bat"
