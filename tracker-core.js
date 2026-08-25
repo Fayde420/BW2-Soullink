@@ -175,18 +175,16 @@ function simulateMoveset(moves, level) {
 // Aufgeloest wird hier, wo die Namenstabelle ohnehin liegt; so gibt es keine
 // zweite Liste, die auseinanderlaufen koennte.
 //
-// `sets` ist eine Liste von { label, names }. Sind alle Eintraege gleich
-// (alle spielen dieselbe ROM), wird nur eine Reihe gezeigt.
+// `sets` ist eine Liste von { label, names }. Jeder Eintrag mit Namen wird als
+// eigene Reihe gezeigt — jeder Spieler hat seine eigene randomisierte ROM und
+// damit eigene Starter. Ohne `label` (Solo) entfaellt die Beschriftung.
+// Bewusst NICHT zusammenfassen, wenn zwei zufaellig gleich sind: sonst saehe
+// eine einzelne, noch nicht vollstaendige Reihe wie "die" Starter des Runs aus.
 function renderStarterBox(boxId, sets, nameToId, spriteUrlFn, onClick) {
   const box = typeof document !== 'undefined' && document.getElementById(boxId);
   if (!box) return;
-  const valid = (sets || []).filter(s => Array.isArray(s.names) && s.names.length);
-  if (!valid.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
-
-  // Alle gleich? Dann reicht eine Reihe ohne Spieler-Beschriftung.
-  const key = s => s.names.join('|');
-  const allSame = valid.every(s => key(s) === key(valid[0]));
-  const rows = allSame ? [{ label: null, names: valid[0].names }] : valid;
+  const rows = (sets || []).filter(s => Array.isArray(s.names) && s.names.length);
+  if (!rows.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
 
   const chip = (name, i) => {
     const id = nameToId[name];
