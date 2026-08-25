@@ -1014,10 +1014,15 @@ function germanNameToId() {
 }
 
 function renderStarters() {
-  const sets = (typeof LIVE_PLAYERS !== 'undefined' ? LIVE_PLAYERS : []).map(p => ({
-    label: p.label,
-    names: data['starters_' + p.slot],
-  }));
+  // Sobald der erste Link steht, ist die Starterwahl vorbei — dann blenden wir
+  // den Kasten aus. Firebase liefert Listen manchmal als Objekt statt Array,
+  // darum nicht auf .length verlassen.
+  const anzahl = o => Array.isArray(o) ? o.length : (o ? Object.keys(o).length : 0);
+  const sets = anzahl(data.links) > 0 ? [] :
+    (typeof LIVE_PLAYERS !== 'undefined' ? LIVE_PLAYERS : []).map(p => ({
+      label: p.label,
+      names: data['starters_' + p.slot],
+    }));
   renderStarterBox('pi-starters-box', sets, germanNameToId(), spriteUrl, 'selectPokeInfo');
 }
 
