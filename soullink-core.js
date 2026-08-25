@@ -1017,30 +1017,38 @@ function updateMoves() {
     return;
   }
 
-  // Simuliere welche 4 das Pokemon tatsächlich hat:
-  // Gehe Level für Level durch, füge Attacken ein, verdrän­ge älteste wenn > 4
-  const levelGroups = {};
-  available.forEach(m => {
-    if (!levelGroups[m.level]) levelGroups[m.level] = [];
-    levelGroups[m.level].push(m);
-  });
+  // Welche 4 hat es wirklich? (gemeinsame Logik in tracker-core.js)
+  const { heldSet, uncertainLevels } = simulateMoveset(available, level);
 
-  let moveset = []; // Namen der tatsächlich gehaltenen Attacken
-  Object.keys(levelGroups).sort((a,b) => a-b).forEach(lvl => {
-    levelGroups[lvl].forEach(m => moveset.push(m.name));
-    while (moveset.length > 4) moveset.shift();
-  });
-
-  const movesetSet = new Set(moveset);
+  // Hinweis, wenn auf einem Level mehr als vier Attacken liegen — dann ist
+  // nicht sicher zu sagen, welche davon das Pokémon behält.
+  const hint = uncertainLevels.size ? `
+    <div style="display:flex;gap:8px;align-items:flex-start;background:rgba(255,213,79,0.08);border:1px solid rgba(255,213,79,0.45);border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:12px;">
+      <span>⚠️</span>
+      <span>Auf ${[...uncertainLevels].sort((a,b)=>a-b).map(l => 'Lv. ' + l).join(' und ')}
+      liegen mehr Attacken, als in die vier Plätze passen. Welche davon das
+      Pokémon behält, hängt von der Lernreihenfolge ab und lässt sich hier nicht
+      sicher sagen — sie sind unten gelb markiert.
+      <strong>Die tatsächlichen Attacken stehen oben</strong>, sobald das Pokémon
+      im Spiel sichtbar ist.</span>
+    </div>` : '';
 
   // Zeige ALLE verfügbaren Attacken an, neueste oben
-  movesEl.innerHTML = [...available].reverse().map(m => {
-    const inMoveset = movesetSet.has(m.name);
+  movesEl.innerHTML = hint + [...available].reverse().map(m => {
+    const unsure = uncertainLevels.has(m.level);
+    const inMoveset = heldSet.has(m.name);
+    // Drei Zustände: sicher dabei · unsicher · sicher nicht dabei
+    const border = unsure ? 'border:1px dashed rgba(255,213,79,0.7);' : '';
+    const lvlColor  = unsure ? 'var(--gold)' : (inMoveset ? 'var(--muted)' : 'var(--dead)');
+    const nameColor = unsure ? 'var(--text)' : (inMoveset ? 'var(--text)' : 'var(--dead)');
+    const dim = (!unsure && !inMoveset) ? 'opacity:0.7;' : '';
     return `
-    <div style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--surface2);border-radius:6px;${!inMoveset ? 'opacity:0.7;' : ''}">
-      <span style="font-family:'Press Start 2P',monospace;font-size:9px;color:${inMoveset ? 'var(--muted)' : 'var(--dead)'};min-width:36px;">Lv.${m.level}</span>
-      <span style="font-weight:700;font-size:14px;color:${inMoveset ? 'var(--text)' : 'var(--dead)'};">${m.name}</span>
-      <span class="type-badge" style="background:${TYPE_COLORS[m.type]||'#888'};color:#fff;font-size:11px;${!inMoveset ? 'filter:grayscale(0.5);' : ''}">${TYPE_DE[m.type]||m.type}</span>
+    <div title="${unsure ? 'Reihenfolge auf diesem Level nicht gesichert' : (inMoveset ? 'Hat das Pokémon auf diesem Level' : 'Bereits verdrängt')}"
+      style="display:flex;align-items:center;gap:10px;padding:6px 10px;background:var(--surface2);border-radius:6px;${border}${dim}">
+      <span style="font-family:'Press Start 2P',monospace;font-size:9px;color:${lvlColor};min-width:36px;">Lv.${m.level}</span>
+      <span style="font-weight:700;font-size:14px;color:${nameColor};">${m.name}</span>
+      <span class="type-badge" style="background:${TYPE_COLORS[m.type]||'#888'};color:#fff;font-size:11px;${(!unsure && !inMoveset) ? 'filter:grayscale(0.5);' : ''}">${TYPE_DE[m.type]||m.type}</span>
+      ${unsure ? '<span style="margin-left:auto;font-size:11px;color:var(--gold);">?</span>' : ''}
     </div>`;
   }).join('');
 }

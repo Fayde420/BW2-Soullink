@@ -133,3 +133,38 @@ function deleteMappingFromModal(key) {
   deleteMapping(key);
   renderMapMappingsList();
 }
+
+// ── Welche vier Attacken hat ein Pokémon auf diesem Level wirklich? ──
+// Das Spiel geht das Lernset von unten nach oben durch und verdrängt die
+// älteste Attacke, sobald ein fünfter Platz gebraucht wird. Eine bereits
+// bekannte Attacke wird dabei übersprungen, nicht erneut gelernt.
+//
+// Unsicher wird es, wenn auf EINEM Level mehr als vier neue Attacken liegen:
+// dann fällt ein Teil davon weg, und welcher, entscheidet allein die
+// Reihenfolge innerhalb dieses Levels. Die stammt aus der Nachschlage-Quelle
+// und ist dort nicht zugesichert — solche Level melden wir als unsicher,
+// statt eine Auswahl vorzutäuschen.
+// (Liegen vier oder weniger auf einem Level, passen sie immer alle hinein —
+//  verdrängt werden dann nur ältere Attacken, die Auswahl bleibt eindeutig.)
+function simulateMoveset(moves, level) {
+  const byLevel = {};
+  (moves || []).filter(m => m && m.level <= level)
+               .forEach(m => { (byLevel[m.level] = byLevel[m.level] || []).push(m); });
+
+  const held = [];                 // Namen der gehaltenen Attacken, in Lernreihenfolge
+  const uncertainLevels = new Set();
+
+  Object.keys(byLevel).map(Number).sort((a, b) => a - b).forEach(lvl => {
+    const group = byLevel[lvl];
+    const fresh = [];              // auf diesem Level wirklich neu Gelerntes
+    group.forEach(m => {
+      if (!held.includes(m.name) && !fresh.includes(m.name)) fresh.push(m.name);
+    });
+    if (fresh.length > 4) uncertainLevels.add(lvl);
+    fresh.forEach(name => {
+      held.push(name);
+      if (held.length > 4) held.shift();
+    });
+  });
+  return { held, heldSet: new Set(held), uncertainLevels };
+}
