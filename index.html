@@ -943,6 +943,8 @@ window.addEventListener('load', () => {
         oninput="filterPokeInfo(this.value)" onfocus="openPokeInfoDrop()" style="font-size:15px;padding:10px 14px;">
       <div class="poke-list" id="pokeinfo-list"></div>
     </div>
+    <!-- Starter dieses Runs (aus der Randomizer-Logdatei) -->
+    <div id="pi-starters-box" style="display:none;margin-bottom:14px;"></div>
     <!-- Gegner-Slot-Picker (sichtbar wenn Trainer mit mehreren Pokémon) -->
     <div id="pi-enemy-slots" style="display:none;justify-content:center;gap:6px;margin-bottom:12px;flex-wrap:wrap;"></div>
     <!-- Gegner-Placeholder (sichtbar im Gegner-Modus wenn kein Gegner) -->
@@ -1283,6 +1285,7 @@ function render() {
   }
   // Gegner-Anzeige im Pokémon-Tab (falls Sub-Tab aktiv)
   if (typeof refreshPiEnemy === 'function') refreshPiEnemy();
+  if (typeof renderStarters === 'function') renderStarters();
 }
 
 // ── LIVE / AUTOTRACKER ──

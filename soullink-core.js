@@ -1002,6 +1002,25 @@ function syncLevelInput(source) {
   updateMoves();
 }
 
+// Namen -> Art-Nummer, einmal aus der vorhandenen Namenstabelle gedreht.
+let _nameToId = null;
+function germanNameToId() {
+  if (_nameToId) return _nameToId;
+  _nameToId = {};
+  if (typeof GERMAN_NAMES !== 'undefined') {
+    for (const id in GERMAN_NAMES) _nameToId[GERMAN_NAMES[id]] = Number(id);
+  }
+  return _nameToId;
+}
+
+function renderStarters() {
+  const sets = (typeof LIVE_PLAYERS !== 'undefined' ? LIVE_PLAYERS : []).map(p => ({
+    label: p.label,
+    names: data['starters_' + p.slot],
+  }));
+  renderStarterBox('pi-starters-box', sets, germanNameToId(), spriteUrl, 'selectPokeInfo');
+}
+
 function updateMoves() {
   const slider = document.getElementById('level-slider');
   if (!slider) return;

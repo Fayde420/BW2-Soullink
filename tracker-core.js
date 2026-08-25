@@ -168,3 +168,55 @@ function simulateMoveset(moves, level) {
   });
   return { held, heldSet: new Set(held), uncertainLevels };
 }
+
+// ── Starter dieses Runs ──
+// Die drei zur Wahl stehenden Starter stammen aus der Randomizer-Logdatei und
+// werden vom Starter-Programm hochgeladen — als NAMEN, nicht als Nummern.
+// Aufgeloest wird hier, wo die Namenstabelle ohnehin liegt; so gibt es keine
+// zweite Liste, die auseinanderlaufen koennte.
+//
+// `sets` ist eine Liste von { label, names }. Sind alle Eintraege gleich
+// (alle spielen dieselbe ROM), wird nur eine Reihe gezeigt.
+function renderStarterBox(boxId, sets, nameToId, spriteUrlFn, onClick) {
+  const box = typeof document !== 'undefined' && document.getElementById(boxId);
+  if (!box) return;
+  const valid = (sets || []).filter(s => Array.isArray(s.names) && s.names.length);
+  if (!valid.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+
+  // Alle gleich? Dann reicht eine Reihe ohne Spieler-Beschriftung.
+  const key = s => s.names.join('|');
+  const allSame = valid.every(s => key(s) === key(valid[0]));
+  const rows = allSame ? [{ label: null, names: valid[0].names }] : valid;
+
+  const chip = (name, i) => {
+    const id = nameToId[name];
+    const img = id
+      ? `<img src="${spriteUrlFn(id)}" alt="" style="width:56px;height:56px;image-rendering:pixelated;">`
+      : `<span style="font-size:26px;color:var(--muted);">?</span>`;
+    const click = id ? ` onclick="${onClick}(${id},'${String(name).replace(/'/g, "\\'")}')"` : '';
+    return `
+      <div${click} title="${id ? name + ' — anklicken für Details' : name + ' (unbekannter Name)'}"
+        style="display:flex;flex-direction:column;align-items:center;gap:2px;min-width:74px;padding:8px 6px;
+               background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+               ${id ? 'cursor:pointer;' : ''}transition:border-color .15s,transform .12s;"
+        ${id ? `onmouseover="this.style.borderColor='var(--accent)';this.style.transform='translateY(-2px)';"
+               onmouseout="this.style.borderColor='var(--border)';this.style.transform='';"` : ''}>
+        <div style="font-family:'Press Start 2P',monospace;font-size:8px;color:var(--muted);">${i + 1}</div>
+        ${img}
+        <div style="font-size:11px;font-weight:700;text-align:center;">${name}</div>
+      </div>`;
+  };
+
+  box.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;">
+      <div style="font-family:'Press Start 2P',monospace;font-size:9px;color:var(--muted);letter-spacing:1px;margin-bottom:10px;">
+        STARTER DIESES RUNS
+      </div>
+      ${rows.map(r => `
+        ${r.label ? `<div style="font-size:11px;color:var(--muted);margin:6px 0 4px;">${r.label}</div>` : ''}
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+          ${r.names.map(chip).join('')}
+        </div>`).join('')}
+    </div>`;
+  box.style.display = 'block';
+}
