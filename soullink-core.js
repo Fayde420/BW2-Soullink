@@ -1013,13 +1013,22 @@ function germanNameToId() {
   return _nameToId;
 }
 
+// Spielerliste der jeweiligen Seite. Trio hat eine feste Liste LIVE_PLAYERS,
+// Duo liefert sie ueber getPlayers() (dort sind die Namen pro Ordner
+// einstellbar). Gemeinsamer Code darf sich auf keines von beidem festlegen.
+function livePlayers() {
+  if (typeof getPlayers === 'function') return getPlayers();
+  if (typeof LIVE_PLAYERS !== 'undefined') return LIVE_PLAYERS;
+  return [];
+}
+
 function renderStarters() {
   // Sobald der erste Link steht, ist die Starterwahl vorbei — dann blenden wir
   // den Kasten aus. Firebase liefert Listen manchmal als Objekt statt Array,
   // darum nicht auf .length verlassen.
   const anzahl = o => Array.isArray(o) ? o.length : (o ? Object.keys(o).length : 0);
   const sets = anzahl(data.links) > 0 ? [] :
-    (typeof LIVE_PLAYERS !== 'undefined' ? LIVE_PLAYERS : []).map(p => ({
+    livePlayers().map(p => ({
       label: p.label,
       names: data['starters_' + p.slot],
     }));
